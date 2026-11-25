@@ -215,7 +215,9 @@ const CARS=[
  {id:'sedan',name:'Kumush Sedan',cls:'Shahar',len:4.6,spd:52,acc:10.5,grip:1.0,player:1,traffic:1},
  {id:'labo',name:'Ko\'k Krossover',cls:'Shahar',len:4.6,spd:52,acc:10.5,grip:0.95,player:1,traffic:1},
 ];
-const MODEL_FIX={}; // filled at load: {rot, x-long etc}
+const MODEL_FIX={};
+// shahar oqimi: Damas va Labo ko'proq (taxminan 60%)
+const TRAFFIC_POOL=['damas','damas','damas','damas2','damas2','damas2','matiz','lacetti','car20','sedan']; // filled at load: {rot, x-long etc}
 
 // ---------- SETTINGS ----------
 const S={q:store.get('q',isTouch?1:2),fps:store.get('fps',60),traffic:store.get('traffic',22),snd:store.get('snd',1),laps:store.get('laps',3),car:store.get('car','car06')};
@@ -588,7 +590,7 @@ function nearestCar(){let best=null,bd=4.2;for(const v of allVehicles){if(v.wrec
 function enterCar(){const v=nearestCar();if(!v||v.wreck)return;if(v.isPolice)crime(1);
  const t=traffic.find(t=>t.veh===v);
  if(t){if(copsNear(hero.pos,40))crime(1);traffic=traffic.filter(x=>x!==t);const dr=new Ped();peds.push(dr);const rt=new THREE.Vector3(v.fwd().z,0,-v.fwd().x);dr.place(v.pos.clone().addScaledVector(rt,2.1),v.h);dr.mode=Math.random()<.35?'fight':'flee';dr.calm=10;flash('Mashina olindi!',900);
-  const ids=CARS.filter(c=>c.traffic).map(c=>c.id);const nt=new Traffic(pick(ids));let k=0;while(nt.veh.pos.distanceTo(hero.pos)<60&&k++<20)nt.spawn();traffic.push(nt);allVehicles.push(nt.veh)}
+  const nt=new Traffic(pick(TRAFFIC_POOL));let k=0;while(nt.veh.pos.distanceTo(hero.pos)<60&&k++<20)nt.spawn();traffic.push(nt);allVehicles.push(nt.veh)}
  parked=parked.filter(x=>x!==v);if(V.radio<0)V.radio=0;v.ai=false;player=v;onFoot=false;hero.g.visible=false;v.v=Math.min(v.v,2);camSnap=true;updTouch()}
 function exitCar(){if(!player)return;if(Math.abs(player.v)>9){flash('Avval sekinlang',800);return}const v=player;const f=v.fwd();const rt=new THREE.Vector3(f.z,0,-f.x);let p=v.pos.clone().addScaledVector(rt,2.2);
  hero.place(p,v.h);hero.g.visible=true;hero.down=0;onFoot=true;parked.push(v);player=null;camSnap=true;updTouch()}
@@ -640,7 +642,7 @@ let racers=[],raceT=0,countdown=0,raceOver=false;
 function clearVehicles(){if(typeof V!=='undefined'){V.pickups.forEach(p=>scene.remove(p.m));V.pickups=[];markers.forEach(m=>scene.remove(m.g));markers.length=0;V.fx.forEach(f=>scene.remove(f.o));V.fx=[];V.tracers.forEach(t=>scene.remove(t.o));V.tracers=[];V.mission=null;V.wanted=0;V.copCars=[];V.cops=[];const vm=$('vmis');if(vm)vm.style.opacity=0}allVehicles.forEach(v=>scene.remove(v.mesh));allVehicles=[];traffic=[];racers=[];player=null;people.slice().forEach(p=>p.remove());people=[];peds=[];hero=null;onFoot=false;parked=[]}
 function startCity(){clearVehicles();mode='city';trackGroup.visible=false;
  player=new Vehicle(S.car);player.place(new THREE.Vector3(roadCoord(3)-LANE,0,roadCoord(2)+20),0);allVehicles.push(player);
- const tids=CARS.filter(c=>c.traffic).map(c=>c.id);
+ const tids=TRAFFIC_POOL.slice().sort(()=>Math.random()-.5);
  for(let k=0;k<S.traffic;k++){const t=new Traffic(tids[k%tids.length]);if(t.veh.pos.distanceTo(player.pos)<25){t.spawn()}traffic.push(t);allVehicles.push(t.veh)}
  hero=new Person({shirt:0x1b1b1b,pants:0x2a3550,skin:0xe8b98a,hair:0x120c08});hero.place(player.pos.clone().add(new THREE.Vector3(-2.4,0,0)),0);
  parked.push(player);player=null;onFoot=true;
