@@ -554,7 +554,8 @@ class Person{
   if(this.y>0.05){this.leg[0].rotation.x=-.6;this.leg[1].rotation.x=.3;this.knee[0].rotation.x=1.1;this.knee[1].rotation.x=.4}
   this.arm[0].rotation.x=a0;this.arm[1].rotation.x=a1;this.elb[0].rotation.x=e0;this.elb[1].rotation.x=e1;this.arm[0].rotation.z=-.08;this.arm[1].rotation.z=.08;
   const lying=this.down>0||this.dead;const tgt=lying?-Math.PI/2:0;this.body.rotation.x+=(tgt-this.body.rotation.x)*Math.min(1,dt*(lying?9:4));this.body.position.y=lying?Math.min(.18,this.body.position.y+dt):Math.max(0,this.body.position.y-dt*2);
-  if(this.stag>0){this.stag-=dt;this.chest.rotation.x=-.3}else this.chest.rotation.x*=.8}
+  if(this.stag>0){this.stag-=dt;this.chest.rotation.x=-.3}else this.chest.rotation.x*=.8;
+  if(this.skin)this.skin.sync(this)}
  sync(){this.g.position.set(this.pos.x,this.y,this.pos.z);this.g.rotation.y=this.h}
  remove(){scene.remove(this.g);people=people.filter(p=>p!==this)}
 }
@@ -595,6 +596,44 @@ function enterCar(){const v=nearestCar();if(!v||v.wreck)return;if(v.isPolice)cri
 function exitCar(){if(!player)return;if(Math.abs(player.v)>9){flash('Avval sekinlang',800);return}const v=player;const f=v.fwd();const rt=new THREE.Vector3(f.z,0,-f.x);let p=v.pos.clone().addScaledVector(rt,2.2);
  hero.place(p,v.h);hero.g.visible=true;hero.down=0;onFoot=true;parked.push(v);player=null;camSnap=true;updTouch()}
 function toggleCar(){if(mode!=='city'||!hero)return;if(onFoot){if(!hero.dead&&hero.down<=0)enterCar()}else exitCar()}
+
+
+// ---------- HERO 3D MODEL (Tripo, auto-skinned) ----------
+let HERO_GLTF=null;
+async function loadHeroModel(){try{const txt=await (await fetch('models/hero.txt')).text();const bin=Uint8Array.from(atob(txt.trim()),c=>c.charCodeAt(0));HERO_GLTF=await new Promise((ok,err)=>loader.parse(bin.buffer,'',ok,err))}catch(e){console.warn('hero model',e)}}
+function upgradeHero(p){if(!HERO_GLTF)return;let src=null;HERO_GLTF.scene.traverse(o=>{if(o.isMesh&&!src)src=o});if(!src)return;
+ src.updateWorldMatrix(true,false);const geo=src.geometry.clone();geo.applyMatrix4(src.matrixWorld);geo.computeBoundingBox();const bb=geo.boundingBox;const H=bb.max.y-bb.min.y;
+ geo.translate(0,-bb.min.y,0);geo.scale(1/H,1/H,1/H);// unit height, feet at 0
+ const V=(x,y,z=0)=>new THREE.Vector3(x,y,z);
+ const B=n=>{const b=new THREE.Bone();b.name=n;return b};
+ const root=B('root'),hips=B('hips'),spine=B('spine'),chest=B('chest'),head=B('head');
+ hips.position.set(0,.46,0);root.add(hips);spine.position.set(0,.10,0);hips.add(spine);chest.position.set(0,.10,0);spine.add(chest);head.position.set(0,.14,0);chest.add(head);
+ const sw=[],lw=[],el=[],hp=[],kn=[];
+ [-1,1].forEach((s,i)=>{const a=B('swing'+i),l=B('lower'+i),e=B('elbow'+i);a.position.set(s*.13,.69-.66,0);chest.add(a);a.add(l);e.position.set(s*.16,-.01,0);l.add(e);sw[i]=a;lw[i]=l;el[i]=e;
+  const h=B('hip'+i),k=B('knee'+i);h.position.set(s*.07,-.01,0);hips.add(h);k.position.set(s*.005,-.21,0);h.add(k);hp[i]=h;kn[i]=k});
+ const bones=[root,hips,spine,chest,head,sw[0],lw[0],el[0],sw[1],lw[1],el[1],hp[0],kn[0],hp[1],kn[1]];
+ const idx=b=>bones.indexOf(b);
+ // weight segments: [bone, a, b, sideConstraint]
+ const segs=[[hips,V(0,.40),V(0,.52),0],[spine,V(0,.52),V(0,.62),0],[chest,V(0,.62),V(0,.78),0],[head,V(0,.78),V(0,1.05),0],
+  [lw[0],V(-.12,.69),V(-.29,.68),-1],[el[0],V(-.29,.68),V(-.52,.67),-1],[lw[1],V(.12,.69),V(.29,.68),1],[el[1],V(.29,.68),V(.52,.67),1],
+  [hp[0],V(-.07,.46),V(-.075,.24),-1],[kn[0],V(-.075,.24),V(-.08,-.02),-1],[hp[1],V(.07,.46),V(.075,.24),1],[kn[1],V(.075,.24),V(.08,-.02),1]];
+ const pos=geo.attributes.position,n=pos.count;const si=new Uint16Array(n*4),swt=new Float32Array(n*4);const P=new THREE.Vector3(),ab=new THREE.Vector3(),ap=new THREE.Vector3();
+ for(let v=0;v<n;v++){P.fromBufferAttribute(pos,v);const c=[];
+  for(const [bone,a,b,side] of segs){if(side&&P.x*side<-.025)continue;ab.subVectors(b,a);ap.subVectors(P,a);const t=THREE.MathUtils.clamp(ap.dot(ab)/ab.lengthSq(),0,1);const d=ap.sub(ab.multiplyScalar(t)).length();
+   // arms only for points out beyond torso, legs only below pelvis
+   let pen=0;if(bone===lw[0]||bone===lw[1]||bone===el[0]||bone===el[1]){if(Math.abs(P.x)<.115)pen=.2}if((bone===hp[0]||bone===hp[1])&&P.y>.5)pen=.2;
+   c.push([idx(bone),1/Math.pow(d+pen+.004,4)])}
+  c.sort((x,y)=>y[1]-x[1]);const w0=c[0][1],w1=c[1]?c[1][1]:0,sum=w0+w1;si[v*4]=c[0][0];si[v*4+1]=c[1]?c[1][0]:0;swt[v*4]=w0/sum;swt[v*4+1]=w1/sum}
+ geo.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));geo.setAttribute('skinWeight',new THREE.Float32BufferAttribute(swt,4));
+ const mat=src.material.clone();mat.roughness=.85;mat.metalness=0;
+ const mesh=new THREE.SkinnedMesh(geo,mat);mesh.castShadow=true;mesh.frustumCulled=false;mesh.add(root);root.updateMatrixWorld(true);mesh.bind(new THREE.Skeleton(bones));
+ const holder=new THREE.Group();holder.scale.setScalar(1.78);holder.add(mesh);
+ p.body.traverse(o=>{if(o.isMesh)o.visible=false});p.body.add(holder);
+ const gunM=new THREE.Group();gunM.position.set(.2,0,0);el[1].add(gunM);
+ p.skin={mesh,sw,lw,el,hp,kn,chest,spine,gunMount:gunM,
+  sync(q){const L=1.32;for(let i=0;i<2;i++){const s=i?1:-1;sw[i].rotation.x=q.arm[i].rotation.x;lw[i].rotation.z=-s*L;el[i].rotation.y=(i?1:-1)*q.elb[i].rotation.x*.9;hp[i].rotation.x=q.leg[i].rotation.x;kn[i].rotation.x=q.knee[i].rotation.x}
+   chest.rotation.y=q.chest.rotation.y;chest.rotation.x=q.chest.rotation.x;}};
+}
 
 // ---------- INPUT ----------
 const keys={};addEventListener('keydown',e=>{keys[e.code]=true;if(e.repeat)return;if(e.code==='KeyE'||e.code==='KeyF'&&false)toggleCar();if((e.code==='KeyJ'||e.code==='KeyF')&&running&&!paused)heroAttack();if((e.code==='KeyQ'||e.code==='Tab')&&running){e.preventDefault();onFoot?cycleWeapon():nextRadio()}if(e.code==='KeyX'&&onFoot)cycleWeapon();if(e.code==='Space'&&onFoot)hero.jump();if(e.code==='KeyC')cycleCam();if(e.code==='KeyR')resetCar();if(e.code==='Escape'||e.code==='KeyP')togglePause()});addEventListener('keyup',e=>keys[e.code]=false);
@@ -644,7 +683,7 @@ function startCity(){clearVehicles();mode='city';trackGroup.visible=false;
  player=new Vehicle(S.car);player.place(new THREE.Vector3(roadCoord(3)-LANE,0,roadCoord(2)+20),0);allVehicles.push(player);
  const tids=TRAFFIC_POOL.slice().sort(()=>Math.random()-.5);
  for(let k=0;k<S.traffic;k++){const t=new Traffic(tids[k%tids.length]);if(t.veh.pos.distanceTo(player.pos)<25){t.spawn()}traffic.push(t);allVehicles.push(t.veh)}
- hero=new Person({shirt:0x1b1b1b,pants:0x2a3550,skin:0xe8b98a,hair:0x120c08});hero.place(player.pos.clone().add(new THREE.Vector3(-2.4,0,0)),0);
+ hero=new Person({shirt:0x1b1b1b,pants:0x2a3550,skin:0xe8b98a,hair:0x120c08});upgradeHero(hero);hero.place(player.pos.clone().add(new THREE.Vector3(-2.4,0,0)),0);
  parked.push(player);player=null;onFoot=true;
  for(let k=0;k<[10,16,24][S.q];k++){const p=new Ped();peds.push(p)}
  {const near=RINGS.slice().sort((a,b)=>Math.hypot((a[0]+a[1])/2-hero.pos.x,(a[2]+a[3])/2-hero.pos.z)-Math.hypot((b[0]+b[1])/2-hero.pos.x,(b[2]+b[3])/2-hero.pos.z)).slice(0,2);peds.slice(0,8).forEach((p,k)=>{p.rg=near[k%2];p.s=k*9+Math.random()*4;const q=ringPoint(p.rg,p.s);p.pos.set(q[0],0,q[1]);p.sync()})}
@@ -748,7 +787,7 @@ function addMoney(n){V.money=Math.max(0,V.money+n)}
 function crime(stars,why){if(mode!=='city')return;const before=Math.ceil(V.wanted);V.wanted=Math.min(6,Math.max(V.wanted,0)+stars);V.wantedT=0;if(Math.ceil(V.wanted)>before)flashStars()}
 function flashStars(){const el=$('vstars');el.classList.add('blink');setTimeout(()=>el.classList.remove('blink'),2500)}
 // gun mesh in hero hand
-function attachGun(p){const g=new THREE.Mesh(new THREE.BoxGeometry(.07,.12,.32),pm(0x222222));g.position.set(0,-.3,.12);p.elb[1].add(g);p.gun=g;g.visible=false}
+function attachGun(p){if(p.skin){const g=new THREE.Mesh(new THREE.BoxGeometry(.11,.05,.035),pm(0x222222));g.position.set(.04,0,.0);p.skin.gunMount.add(g);p.gun=g;g.visible=false;return}const g=new THREE.Mesh(new THREE.BoxGeometry(.07,.12,.32),pm(0x222222));g.position.set(0,-.3,.12);p.elb[1].add(g);p.gun=g;g.visible=false}
 // --- shooting (hitscan) ---
 const tracerMat=new THREE.LineBasicMaterial({color:0xffe9a0,transparent:true,opacity:.9});
 const flashMat=new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:.95,toneMapped:false});
@@ -996,7 +1035,7 @@ let composer=null;function makeComposer(){try{composer=new EffectComposer(render
 makeComposer();
 // ---------- BOOT ----------
 applyQuality();resize();requestAnimationFrame(loop);
-await loadAll();
+await loadAll();await loadHeroModel();
 // tire stacks along track corners
 if(proto.car04){TRACK.forEach((p,k)=>{for(let s=0;s<2;s++){const t=proto.car04.obj.clone(true);const sc=1.3/proto.car04.h*0.5;t.scale.setScalar(sc);t.rotation.z=Math.PI/2;t.position.set(p.x+(s?1:-1)*(ROAD/2+1.2),0.35,p.z+(s?-1:1)*(ROAD/2+1.2));trackGroup.add(t)}})}
 $('loading').classList.add('hide');showMenu();
