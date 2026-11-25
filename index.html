@@ -479,7 +479,7 @@ class Traffic{
   this.cur+=(want-this.cur)*Math.min(1,dt*2.5);
   this.t+=this.cur*dt/L;
   if(this.t>=1){const pd=this.dir;this.ni=this.ti;this.nj=this.tj;this.pickNext(pd);return this.apply(0)}
-  const p=a.clone().lerp(b,this.t).addScaledVector(right,-LANE);
+  const p=a.clone().lerp(b,this.t).addScaledVector(right,LANE);
   // if displaced by collision, ease back
   if(dt>0&&me.pos.distanceTo(p)>0.01){me.pos.lerp(p,Math.min(1,dt*3))}else me.pos.copy(p);
   const th=Math.atan2(dir.x,dir.z);let dh=th-me.h;dh=Math.atan2(Math.sin(dh),Math.cos(dh));me.h+=dh*Math.min(1,dt*6+(dt===0?1:0));
