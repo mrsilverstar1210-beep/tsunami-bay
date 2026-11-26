@@ -888,6 +888,18 @@ const joy={x:0,y:0,id:null};{const J=$('joy'),K=$('knob');const upd=(cx,cy)=>{co
  J.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===joy.id)upd(t.clientX,t.clientY)},{passive:false});
  const end=e=>{for(const t of e.changedTouches)if(t.identifier===joy.id){joy.id=null;joy.x=joy.y=0;K.style.left='50px';K.style.top='50px'}};J.addEventListener('touchend',end);J.addEventListener('touchcancel',end)}
 canvas.addEventListener('mousedown',e=>{if(e.button===0&&running&&!paused){mouseDown=true;heroAttack()}});addEventListener('mouseup',()=>mouseDown=false);canvas.addEventListener('wheel',e=>{if(onFoot&&running)cycleWeapon()});
+// ---- camera look: swipe on the right side of the screen (touch) or drag with right mouse button ----
+const look={yaw:0,pitch:.18,off:0,id:null,lx:0,ly:0,active:false,idle:9,init:false};
+{const isUI=t=>t&&t.closest&&t.closest('button,.tbtn,#joy,#knob,.scr,#hudTop,a,input,select');
+ const logical=(x,y)=>isRot()?[y,innerWidth-x]:[x,y];const LW=()=>isRot()?innerHeight:innerWidth;
+ const drag=(dx,dy)=>{const s=4.2/LW();look.yaw-=dx*s;look.off-=dx*s;look.pitch=THREE.MathUtils.clamp(look.pitch+dy*s*.8,-.25,1.05);look.idle=0};
+ addEventListener('touchstart',e=>{if(!running||paused)return;for(const t of e.changedTouches){if(look.id!==null)break;if(isUI(t.target))continue;const [x,y]=logical(t.clientX,t.clientY);if(x>LW()*.38){look.id=t.identifier;look.lx=x;look.ly=y;look.active=true}}},{passive:true});
+ addEventListener('touchmove',e=>{for(const t of e.changedTouches)if(t.identifier===look.id){const [x,y]=logical(t.clientX,t.clientY);drag(x-look.lx,y-look.ly);look.lx=x;look.ly=y}},{passive:true});
+ const tend=e=>{for(const t of e.changedTouches)if(t.identifier===look.id){look.id=null;look.active=false}};addEventListener('touchend',tend);addEventListener('touchcancel',tend);
+ let md=false;addEventListener('contextmenu',e=>{if(running)e.preventDefault()});
+ addEventListener('mousedown',e=>{if(e.button===2&&running){md=true;look.lx=e.clientX;look.ly=e.clientY;look.active=true}});
+ addEventListener('mousemove',e=>{if(md){drag(e.clientX-look.lx,e.clientY-look.ly);look.lx=e.clientX;look.ly=e.clientY}});
+ addEventListener('mouseup',e=>{if(e.button===2){md=false;look.active=false}})}
 function readFoot(){let f=0,t=0;if(keys.KeyW||keys.ArrowUp)f+=1;if(keys.KeyS||keys.ArrowDown)f-=1;if(keys.KeyA||keys.ArrowLeft)t+=1;if(keys.KeyD||keys.ArrowRight)t-=1;
  let jx=joy.x,jy=joy.y;return {f,t,jx,jy,run:!!(keys.ShiftLeft||keys.ShiftRight||touch.S)}}
 function updTouch(){if(!isTouch)return;$('tcar').classList.toggle('hide',onFoot);$('tfoot').classList.toggle('hide',!onFoot);$('tE').textContent=onFoot?'MIN':'TUSH';$('tE').classList.toggle('hide',mode!=='city')}
@@ -965,10 +977,20 @@ function finishRace(){raceOver=true;const st=standings();const pos=st.indexOf(pl
 
 // ---------- CAMERA ----------
 let camSnap=true;const camPos=new THREE.Vector3(),camLook=new THREE.Vector3();
+function lookState(){let yaw=null,carOff=0;return{
+ step(dt,P){const f=P.fwd();const hy=Math.atan2(f.x,f.z);if(yaw===null||camSnap){yaw=hy;look.off=0}
+  look.idle+=dt;
+  if(onFoot){// free orbit; drift behind the hero when he walks and the player is not swiping
+   yaw+=look.off;look.off=0;const moving=P.vel?Math.hypot(P.vel.x,P.vel.z)>.5:false;if(!look.active&&moving&&look.idle>1.2){let d=hy-yaw;d=Math.atan2(Math.sin(d),Math.cos(d));yaw+=d*Math.min(1,dt*1.6)}
+   carOff=0}
+  else{carOff+=look.off;look.off=0;carOff=Math.atan2(Math.sin(carOff),Math.cos(carOff));if(!look.active&&look.idle>1.5)carOff*=Math.max(0,1-dt*2.5);yaw=hy+carOff;
+   if(!look.active&&look.idle>1.5)look.pitch+=(.18-look.pitch)*Math.min(1,dt*2)}},
+ yaw:()=>yaw,carOff:()=>carOff,pitch:()=>look.pitch}}
 function updateCamera(dt){const P=focusObj();if(!P)return;const f=P.fwd();const sp=Math.abs(P.v);
  let want,look;
- if(onFoot){const back=[4.2,2.6,9][camMode],up=[2.3,1.9,6][camMode];want=P.pos.clone().addScaledVector(f,-back);want.y=up+P.y;look=P.pos.clone().addScaledVector(f,2.5);look.y=1.3+P.y}
- else if(camMode===0){const back=7.5+sp*0.06,up=2.8+sp*0.015;want=P.pos.clone().addScaledVector(f,-back);want.y=up;look=P.pos.clone().addScaledVector(f,4);look.y=1.2}
+ const L=window._lookCam||(window._lookCam=lookState());L.step(dt,P);
+ if(onFoot){const back=[4.2,2.6,9][camMode],up=[2.3,1.9,6][camMode];const g=new THREE.Vector3(Math.sin(L.yaw()),0,Math.cos(L.yaw()));const pc=Math.cos(L.pitch()),ps=Math.sin(L.pitch());const dist=back*(camMode===2?1:1);want=P.pos.clone().addScaledVector(g,-dist*pc);want.y=P.y+1.5+(up-1.5)*.4+dist*ps;look=P.pos.clone().addScaledVector(g,2.5);look.y=1.3+P.y}
+ else if(camMode===0){const back=7.5+sp*0.06;const yw=Math.atan2(f.x,f.z)+L.carOff();const g=new THREE.Vector3(Math.sin(yw),0,Math.cos(yw));const pc=Math.cos(L.pitch()),ps=Math.sin(L.pitch());want=P.pos.clone().addScaledVector(g,-back*pc);want.y=1.6+back*ps+sp*0.015;look=P.pos.clone().addScaledVector(g,4);look.y=1.2}
  else if(camMode===1){want=P.pos.clone().addScaledVector(f,0.4);want.y=1.35;look=P.pos.clone().addScaledVector(f,10);look.y=1.2}
  else{want=P.pos.clone().addScaledVector(f,-18);want.y=16;look=P.pos.clone().addScaledVector(f,6)}
  if(camSnap){camPos.copy(want);camLook.copy(look);camSnap=false}
