@@ -50,20 +50,25 @@ const sun=new THREE.DirectionalLight(0xfff1dc,2.1);sun.position.set(3000,4500,25
 // ---------- terrain ----------
 const TW=7000,TH=9000,NX=230,NZ=296;const tg=new THREE.PlaneGeometry(TW,TH,NX,NZ);tg.rotateX(-Math.PI/2);tg.translate(-300,0,-200);
 const pos=tg.attributes.position,cols=new Float32Array(pos.count*3);const C=new THREE.Color();
+function distPL0(P,x,z){let m=1e9;for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i];const dx=b[0]-a[0],dz=b[1]-a[1];let t=((x-a[0])*dx+(z-a[1])*dz)/(dx*dx+dz*dz);t=Math.max(0,Math.min(1,t));m=Math.min(m,Math.hypot(a[0]+dx*t-x,a[1]+dz*t-z))}return m}
+const CANALS=[{P:toM([[4.9,4.02],[4.62,4.0],[4.42,3.93],[4.3,3.82]]),w:46,basin:W(4.28,3.8),r:95},{P:toM([[4.7,2.98],[4.47,3.03],[4.26,2.93],[4.12,2.86]]),w:40,basin:W(4.1,2.85),r:75},{P:toM([[4.55,4.6],[4.35,4.52],[4.2,4.6]]),w:34,basin:W(4.18,4.62),r:55}];
+function canalDist(x,z){let m=1e9;for(const c of CANALS){m=Math.min(m,distPL0(c.P,x,z)-c.w/2,Math.hypot(x-c.basin[0],z-c.basin[1])-c.r)}return m}
 function height(x,z){const d=coast(x,z);if(d<0)return Math.max(-60,d*.12-1.2);
  let h=1.2+Math.min(d,140)/140*3.5;
  const rolling=fbm(x/900,z/900)*18*Math.min(1,d/400);h+=Math.max(0,rolling+6);
  if(inPoly(MOUNT,x,z)){const md=segDist(MOUNT,x,z);const k=Math.min(1,md/450);h+=k*(420+fbm(x/500,z/500,6)*420)+Math.abs(fbm(x/160,z/160,4))*140*k}
  if(inPoly(LAKE,x,z)){h=-6}else{const ld=segDist(LAKE,x,z);if(ld<80)h=Math.min(h,1.5+ld*.12)}
  if(inPoly(CITY,x,z)||inPoly(SWAMP,x,z))h=Math.min(h,3+Math.max(0,fbm(x/600,z/600))*3);
+ {const cd=canalDist(x,z);if(cd<0)h=Math.min(h,-5);else if(cd<20)h=Math.min(h,.8+cd*.12)}
  return h}
 const HM=new Float32Array(pos.count);
 for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);const h=height(x,z);HM[i]=h;pos.setY(i,h);const d=coast(x,z);
  if(h<-0.5){C.setRGB(.45,.72,.66).lerp(new THREE.Color(.03,.13,.24),Math.min(1,-h/25))}
  else if(d<45)C.setRGB(.93,.85,.62);
+ else if(canalDist(x,z)<12)C.setRGB(.75,.72,.66);
  else if(inPoly(SWAMP,x,z))C.setRGB(.24,.33,.16).lerp(new THREE.Color(.25,.35,.3),fbm(x/90,z/90)*.5+.5);
  else if(h>120){const r=Math.min(1,(h-120)/380);C.setRGB(.13,.27,.1).lerp(new THREE.Color(.47,.44,.38),r*r)}
- else if(inPoly(CITY,x,z))C.setRGB(.42,.43,.44);
+ else if(inPoly(CITY,x,z))C.setRGB(.24,.25,.27);
  else{const n=fbm(x/400,z/400)*.5+.5;C.setRGB(.17+n*.1,.33+n*.1,.11+n*.04)}
  cols[i*3]=C.r;cols[i*3+1]=C.g;cols[i*3+2]=C.b}
 tg.setAttribute('color',new THREE.BufferAttribute(cols,3));tg.computeVertexNormals();
@@ -83,25 +88,60 @@ const bgeo=new THREE.BoxGeometry(1,1,1);bgeo.translate(0,.5,0);
 const bmat=new THREE.MeshStandardMaterial({map:winTex,emissiveMap:litTex,emissive:0xffffff,emissiveIntensity:0,roughness:.6});
 const glass=new THREE.MeshStandardMaterial({map:winTex,emissiveMap:litTex,emissive:0xffffff,emissiveIntensity:0,roughness:.18,metalness:.6});
 const PAL=[0xffc7d6,0xa8f0e0,0xffe3b8,0xd9c4ff,0xfff4e6,0xff9fbf,0x9fe1ff,0xf7f0c6,0xffd1a8,0xb8f5c8,0xf2f2f2,0xe8d9c4];
-// ---------- city (grid of blocks inside the city polygon) ----------
-const blds=[],towers=[],roadsC=[];const BLK=72,ROAD=10;
-const DT=W(4.18,3.62);
-function fillGrid(poly,x0,z0,x1,z1,opt){for(let x=x0;x<x1;x+=BLK)for(let z=z0;z<z1;z+=BLK){const cx=x+BLK/2,cz=z+BLK/2;if(!inPoly(poly,cx,cz)||coast(cx,cz)<70)continue;
-  const h0=hAt(cx,cz);roadsC.push([cx,cz,h0]);const dd=Math.hypot(cx-DT[0],cz-DT[1]);const cent=opt.down?Math.max(0,1-dd/650):0;
-  const n=cent>.25?1:2;const s=(BLK-ROAD)/n;
-  for(let a=0;a<n;a++)for(let b=0;b<n;b++){const bx=x+ROAD/2+s*(a+.5),bz=z+ROAD/2+s*(b+.5);
-   if(cent>.25){const H=60+cent*200*(.6+rnd()*.7);towers.push({x:bx,z:bz,y:h0,w:s*.78,d:s*.78,h:H,c:pick([0xdbe9f5,0xbfd8ee,0xe8e2d6,0xcfe7e2,0xa9c5e8])})}
-   else{const H=(opt.low?6:10)+rnd()*(opt.low?6:28)+cent*40;blds.push({x:bx,z:bz,y:h0,w:s*.8,d:s*.8,h:H,c:pick(PAL)})}}}}
-{const xs=CITY.map(p=>p[0]),zs=CITY.map(p=>p[1]);fillGrid(CITY,Math.min(...xs),Math.min(...zs),Math.max(...xs),Math.max(...zs),{down:true})}
-const YO=toM(cr([[2.3,4.55],[3.0,4.6],[3.0,5.05],[2.3,5.05]],4));{const xs=YO.map(p=>p[0]),zs=YO.map(p=>p[1]);fillGrid(YO,Math.min(...xs),Math.min(...zs),Math.max(...xs),Math.max(...zs),{low:true})}
+// ---------- city: organic districts (each with its own street angle and block size), canals, boulevard ----------
+const blds=[],towers=[],rounds=[],slabs=[],parksC=[],parkTrees=[];const DT=W(4.15,3.58);
+const SEEDS=[{k:[4.12,3.55],a:18,b:84},{k:[4.3,4.7],a:-14,b:70},{k:[4.25,2.55],a:40,b:74},{k:[3.6,3.3],a:3,b:66},{k:[3.85,4.3],a:31,b:46,old:1},{k:[4.6,3.15],a:24,b:58},{k:[3.75,2.4],a:-22,b:62}].map(s=>({...s,p:W(...s.k),ang:s.a*Math.PI/180}));
+const nearestSeed=(x,z)=>{let bi=0,bd=1e18;SEEDS.forEach((s,i)=>{const d=(x-s.p[0])**2+(z-s.p[1])**2;if(d<bd){bd=d;bi=i}});return bi};
+const AVE=toM([[3.42,2.62],[3.75,3.2],[4.05,3.75],[4.35,4.35],[4.6,4.95]]);
+const distPL=(P,x,z)=>{let m=1e9;for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i];const dx=b[0]-a[0],dz=b[1]-a[1];let t=((x-a[0])*dx+(z-a[1])*dz)/(dx*dx+dz*dz);t=Math.max(0,Math.min(1,t));m=Math.min(m,Math.hypot(a[0]+dx*t-x,a[1]+dz*t-z))}return m};
+function organic(poly,seeds,opt={}){seeds.forEach(s=>{const si=SEEDS.indexOf(s);const ca=Math.cos(s.ang),sa=Math.sin(s.ang);const ox=s.p[0],oz=s.p[1];
+ const lines=(n0,n1)=>{const L=[n0];let v=n0,k=0;while(v<n1){v+=s.b*(.72+rnd()*.62);L.push(v)}return L};
+ const U=lines(-1900,1900),Vv=lines(-1900,1900);
+ const toW=(u,v)=>[ox+u*ca-v*sa,oz+u*sa+v*ca];
+ for(let i=1;i<U.length;i++)for(let j=1;j<Vv.length;j++){
+  const su=(i%4===0?20:12),sv=(j%4===0?20:12);const u0=U[i-1]+su/2,u1=U[i]-su/2,v0=Vv[j-1]+sv/2,v1=Vv[j]-sv/2;const bw=u1-u0,bd=v1-v0;if(bw<16||bd<16)continue;
+  const cu=(u0+u1)/2,cv=(v0+v1)/2;const [cx,cz]=toW(cu,cv);
+  if(!inPoly(poly,cx,cz))continue;if(opt.seeded!==false&&nearestSeed(cx,cz)!==si)continue;
+  const cd=coast(cx,cz);if(cd<70)continue;if(canalDist(cx,cz)<Math.max(bw,bd)/2+8)continue;if(distPL(AVE,cx,cz)<Math.max(bw,bd)/2+12)continue;
+  // corners must be on land too (keeps the edge of the city ragged but clean)
+  let okc=0;for(const [a,b] of [[u0,v0],[u1,v0],[u0,v1],[u1,v1]]){const [x,z]=toW(a,b);if(inPoly(poly,x,z)&&coast(x,z)>40)okc++}if(okc<3)continue;
+  const y=hAt(cx,cz);if(!opt.low&&rnd()<.07){parksC.push({x:cx,z:cz,y,w:bw,d:bd,r:-s.ang});for(let q=0;q<Math.round(bw*bd/500);q++){const [tx,tz]=toW(u0+4+rnd()*(bw-8),v0+4+rnd()*(bd-8));parkTrees.push({x:tx,z:tz,y:y+.9})}continue}slabs.push({x:cx,z:cz,y,w:bw,d:bd,r:-s.ang});
+  const dd=Math.hypot(cx-DT[0],cz-DT[1]);const cent=opt.low?0:Math.max(0,1-dd/700);
+  // lots
+  const nu=s.old?2:Math.max(1,Math.round(bw/(cent>.3?40:28))),nv=s.old?2:Math.max(1,Math.round(bd/(cent>.3?40:28)));
+  for(let a=0;a<nu;a++)for(let b=0;b<nv;b++){if(rnd()<(s.old?.06:.1))continue;const lu=u0+bw*(a+.5)/nu,lv=v0+bd*(b+.5)/nv;const lw=bw/nu-5,ld=bd/nv-5;const [x,z]=toW(lu,lv);
+   if(cent>.32&&!s.old){const H=55+cent*230*(.5+rnd()*.8);const it={x,z,y,w:lw*.9,d:ld*.9,h:H,r:-s.ang,c:pick([0xdbe9f5,0xbfd8ee,0xe8e2d6,0xcfe7e2,0xa9c5e8,0xf0e4d0])};(rnd()<.18?rounds:towers).push(it)}
+   else{const H=s.old?5+rnd()*9:(opt.low?6+rnd()*6:9+rnd()*24+cent*60);blds.push({x,z,y,w:lw*(.75+rnd()*.25),d:ld*(.75+rnd()*.25),h:H,r:-s.ang,c:pick(PAL)})}}}})}
+organic(CITY,SEEDS);
+const YO=toM(cr([[2.3,4.55],[3.0,4.6],[3.0,5.05],[2.3,5.05]],4));organic(YO,[{p:W(2.65,4.8),ang:.3,b:52,old:0}],{seeded:false,low:true});
 // marina islands & keys: villas
-for(const P of MARINA.concat(KEYS)){const xs=P.map(p=>p[0]),zs=P.map(p=>p[1]);for(let k=0;k<(P.length>60?120:28);k++){const x=Math.min(...xs)+rnd()*(Math.max(...xs)-Math.min(...xs)),z=Math.min(...zs)+rnd()*(Math.max(...zs)-Math.min(...zs));if(!inPoly(P,x,z)||coast(x,z)<25)continue;blds.push({x,z,y:hAt(x,z),w:14+rnd()*10,d:12+rnd()*8,h:7+rnd()*8,c:pick([0xffffff,0xffe3b8,0xffc7d6,0xa8f0e0])})}}
-inst(bgeo,bmat,blds,(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(b.w,b.h,b.d);o.rotation.set(0,0,0)});
-inst(bgeo,glass,towers,(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(b.w,b.h,b.d);o.rotation.set(0,0,0)});
-// city street grid: dark plates under each block + lane lines
-{const plate=new THREE.PlaneGeometry(BLK,BLK);plate.rotateX(-Math.PI/2);const asphalt=new THREE.MeshStandardMaterial({color:0x3b3d42,roughness:.9});
- const side=new THREE.BoxGeometry(BLK-ROAD,.8,BLK-ROAD);side.translate(0,.4,0);const sideM=new THREE.MeshStandardMaterial({color:0xc9c3b8,roughness:.9});
- inst(plate,asphalt,roadsC,(r,o)=>{o.position.set(r[0],r[2]+.2,r[1]);o.scale.set(1,1,1)});inst(side,sideM,roadsC,(r,o)=>{o.position.set(r[0],r[2]+.2,r[1])})}
+for(const P of MARINA.concat(KEYS)){const xs=P.map(p=>p[0]),zs=P.map(p=>p[1]);for(let k=0;k<(P.length>60?120:28);k++){const x=Math.min(...xs)+rnd()*(Math.max(...xs)-Math.min(...xs)),z=Math.min(...zs)+rnd()*(Math.max(...zs)-Math.min(...zs));if(!inPoly(P,x,z)||coast(x,z)<25)continue;blds.push({x,z,y:hAt(x,z),w:14+rnd()*10,d:12+rnd()*8,h:7+rnd()*8,r:rnd()*3,c:pick([0xffffff,0xffe3b8,0xffc7d6,0xa8f0e0])})}}
+const place=(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(b.w,b.h,b.d);o.rotation.set(0,b.r||0,0)};
+inst(bgeo,bmat,blds,place);inst(bgeo,glass,towers,place);
+{const cg=new THREE.CylinderGeometry(.5,.5,1,20);cg.translate(0,.5,0);inst(cg,glass,rounds,(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(Math.min(b.w,b.d),b.h,Math.min(b.w,b.d))})}
+// city ground: asphalt under the whole city, sidewalks per block
+{const side=new THREE.BoxGeometry(1,.8,1);side.translate(0,.4,0);inst(side,new THREE.MeshStandardMaterial({color:0xc9c3b8,roughness:.9}),slabs,(b,o)=>{o.position.set(b.x,b.y+.1,b.z);o.scale.set(b.w,1,b.d);o.rotation.set(0,b.r,0)})}
+{const pg=new THREE.BoxGeometry(1,1,1);pg.translate(0,.5,0);inst(pg,new THREE.MeshStandardMaterial({color:0x4f8f3a,roughness:1}),parksC,(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(b.w,1,b.d);o.rotation.set(0,b.r,0)})}
+// grand avenue + coastal boulevard
+function ribbonM(P,w,col=0x34363b,line=true){const L=[],I=[],L2=[];const piers=[];for(let i=0;i<P.length;i++){const a=P[Math.max(0,i-1)],b=P[Math.min(P.length-1,i+1)];let dx=b[0]-a[0],dz=b[1]-a[1];const l=Math.hypot(dx,dz)||1;dx/=l;dz/=l;const nx=-dz,nz=dx;const x=P[i][0],z=P[i][1];
+  let y=hAt(x,z);const wet=y<1.6;y=wet?7:y+.9;if(wet&&i%3===0)piers.push({x,z,y});L.push(x+nx*w/2,y,z+nz*w/2,x-nx*w/2,y,z-nz*w/2);L2.push(x+nx*.5,y+.06,z+nz*.5,x-nx*.5,y+.06,z-nz*.5);if(i>0){const k=(i-1)*2;I.push(k,k+1,k+2,k+1,k+3,k+2)}}
+ const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(L,3));g.setIndex(I);g.computeVertexNormals();const m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:col,roughness:.85}));m.receiveShadow=true;scene.add(m);
+ if(line){const g2=new THREE.BufferGeometry();g2.setAttribute('position',new THREE.Float32BufferAttribute(L2,3));g2.setIndex(I.slice());scene.add(new THREE.Mesh(g2,new THREE.MeshBasicMaterial({color:0xf2c94c})))}
+ if(piers.length){const pg=new THREE.BoxGeometry(4,1,4);pg.translate(0,-.5,0);inst(pg,new THREE.MeshStandardMaterial({color:0xd8d4cc}),piers,(p,o)=>{o.position.set(p.x,p.y,p.z);o.scale.set(1,p.y+6,1)})}}
+const dens=(P,step)=>{const out=[];for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i];const n=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/step));for(let k=0;k<n;k++)out.push([a[0]+(b[0]-a[0])*k/n,a[1]+(b[1]-a[1])*k/n])}out.push(P[P.length-1]);return out};
+ribbonM(dens(toM(cr([[3.42,2.62],[3.75,3.2],[4.05,3.75],[4.35,4.35],[4.6,4.95]].concat([[4.7,5.2],[3.3,2.3]]),16).slice(0,4*16+1)),20),26);
+const BLV=[];{for(const p of ISL){const km=[p[0]/1000+KX,-p[1]/1000+KY];if(km[0]>3.9&&km[1]>2.15&&km[1]<5.2){const n=[0,0];const d0=coast(p[0],p[1]);
+  // step inward along the gradient of the coast distance
+  const e=6;const gx=coast(p[0]+e,p[1])-coast(p[0]-e,p[1]),gz=coast(p[0],p[1]+e)-coast(p[0],p[1]-e);const gl=Math.hypot(gx,gz)||1;BLV.push([p[0]+gx/gl*52,p[1]+gz/gl*52])}}}
+BLV.sort((a,b)=>a[1]-b[1]);if(BLV.length>3)ribbonM(dens(BLV,20),18);
+// palms along the boulevard and avenue
+const streetPalms=[];for(const p of dens(BLV,24)){streetPalms.push({x:p[0]+6,z:p[1],y:hAt(p[0],p[1])})}
+// canal boats
+{const boats=[];for(const c of CANALS){for(let i=0;i<14;i++){const t=rnd();const a=c.P[0],b=c.P[c.P.length-1];const x=a[0]+(b[0]-a[0])*t+(rnd()-.5)*c.w*.5,z=a[1]+(b[1]-a[1])*t+(rnd()-.5)*c.w*.5;if(canalDist(x,z)<-4)boats.push({x,z,r:Math.atan2(b[0]-a[0],b[1]-a[1])})}
+  for(let i=0;i<24;i++){const a=rnd()*6.28,r=rnd()*c.r*.8;boats.push({x:c.basin[0]+Math.cos(a)*r,z:c.basin[1]+Math.sin(a)*r,r:rnd()*3})}}
+ const bg=new THREE.BoxGeometry(5,2.5,13);bg.translate(0,1,0);inst(bg,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.3}),boats,(b,o)=>{o.position.set(b.x,0,b.z);o.rotation.set(0,b.r,0)})}
+const roadsC=[];
+
 // neon rims on some towers
 {const rim=[];towers.forEach(t=>{if(rnd()<.3){const c=pick([0xff2fa0,0x22e8ff,0xb04dff,0xffe14d]);const y=t.y+t.h-1.5;rim.push({x:t.x,z:t.z+t.d/2,y,w:t.w,d:.8,c},{x:t.x,z:t.z-t.d/2,y,w:t.w,d:.8,c},{x:t.x+t.w/2,z:t.z,y,w:.8,d:t.d,c},{x:t.x-t.w/2,z:t.z,y,w:.8,d:t.d,c})}});inst(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}),rim,(t,o)=>{o.position.set(t.x,t.y,t.z);o.scale.set(t.w,1.4,t.d)})}
 // ---------- highways ----------
@@ -152,13 +192,13 @@ for(const [a,b] of [[[4.72,3.78],[4.97,3.78]],[[4.68,3.26],[4.9,3.26]],[[4.55,2.
 // ---------- trees ----------
 {const pine=[],palm=[],round=[];
  for(let i=0;i<14000;i++){const x=-3200+rnd()*6400,z=-3800+rnd()*7600;const d=coast(x,z);if(d<30)continue;const h=hAt(x,z);if(h<1.6)continue;
-  if(inPoly(CITY,x,z)||inPoly(YO,x,z))continue;
+  if(inPoly(CITY,x,z)||inPoly(YO,x,z)||canalDist(x,z)<10)continue;
   if(inPoly(MOUNT,x,z)){if(h<420&&rnd()<.9)pine.push({x,z,y:h,s:.8+rnd()*.8,c:new THREE.Color().setHSL(.3+rnd()*.05,.45,.18+rnd()*.08).getHex()})}
   else if(inPoly(SWAMP,x,z)){if(rnd()<.35)round.push({x,z,y:h,s:.6+rnd()*.5,c:0x3e5f2e})}
   else if(d<160&&rnd()<.3)palm.push({x,z,y:h,s:.8+rnd()*.4,c:0x3f9a45});
   else if(rnd()<.12)round.push({x,z,y:h,s:.7+rnd()*.7,c:new THREE.Color().setHSL(.25+rnd()*.06,.45,.25+rnd()*.1).getHex()})}
  // city palms along streets
- for(const r of roadsC)if(rnd()<.5)palm.push({x:r[0]+BLK/2-4,z:r[1]+(rnd()-.5)*40,y:r[2],s:.9,c:0x3f9a45});
+ for(const p of streetPalms)palm.push({x:p.x,z:p.z,y:p.y,s:.9,c:0x3f9a45});for(const t of parkTrees)round.push({x:t.x,z:t.z,y:t.y,s:.7+rnd()*.4,c:new THREE.Color().setHSL(.27+rnd()*.05,.5,.27).getHex()});
  const cone=new THREE.ConeGeometry(5,18,6);cone.translate(0,13,0);const cyl=new THREE.CylinderGeometry(.8,1,5,5);cyl.translate(0,2.5,0);
  const pm=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.9,flatShading:true});
  inst(cone,pm,pine,(t,o)=>{o.position.set(t.x,t.y,t.z);o.scale.setScalar(t.s);o.rotation.set(0,rnd()*6,0)});
@@ -180,7 +220,7 @@ label('Marina orollari',5.05,3.5,80);label('Aeroport',3.0,3.42,80);label('Qamish
 const vw=(cx,cy,tx,ty,h,ty2=0)=>{const a=W(cx,cy),b=W(tx,ty);return [[a[0],h,a[1]],[b[0],ty2,b[1]]]};
 const V={all:vw(2.6,-3.2,2.6,3.6,8200),city:vw(5.6,2.4,4.1,3.65,700,40),marina:vw(5.7,3.0,4.9,3.35,330,10),mount:vw(2.4,4.6,2.0,6.5,1100,300),south:vw(3.4,-.6,2.2,1.5,1300)};
 let anim=null;function go(k){const [p,t]=V[k];anim={p0:cam.position.clone(),t0:ctr.target.clone(),p1:new THREE.Vector3(...p),t1:new THREE.Vector3(...t),k:0};document.querySelectorAll('#ui button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===k))}
-document.querySelectorAll('#ui button[data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));window.goNow=k=>{go(k);anim.k=.999};
+document.querySelectorAll('#ui button[data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));window.goNow=k=>{go(k);anim.k=.999};window.camSet=(p,t)=>{anim=null;cam.position.set(...p);ctr.target.set(...t);ctr.update()};
 let night=false;document.getElementById('night').onclick=e=>{night=!night;e.target.classList.toggle('on',night);
  sun.intensity=night?.15:2.1;hemi.intensity=night?.25:.75;skyU.top.value.set(night?0x0b0f2a:0x2f7fd6);skyU.bot.value.set(night?0x3a1a4a:0xffd6b0);scene.fog.color.set(night?0x1a1430:0xcfe3f2);
  bmat.emissiveIntensity=glass.emissiveIntensity=night?1.2:0};
