@@ -12,7 +12,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0b1a2a;font-family:sy
 </style></head><body>
 <div id="load">Orol yaratilmoqda…</div>
 <div id="ui"><h1>TSUNAMI BAY · orol</h1>
-<button data-v="all" class="on">Butun orol</button><button data-v="city">Shahar</button><button data-v="marina">Marina</button><button data-v="mount">Tog' va ko'l</button><button data-v="south">Janub</button><button id="night">Tun</button></div>
+<button data-v="all" class="on">Butun orol</button><button data-v="city">Shahar</button><button data-v="marina">Marina</button><button data-v="mount">Tog' va ko'l</button><button data-v="villa">Villalar</button><button data-v="bridge">Ko'priklar</button><button data-v="south">Janub</button><button id="night">Tun</button></div>
 <div id="hint">Bir barmoq — aylantirish · ikki barmoq — yaqinlashtirish / surish</div>
 <script type="importmap">{"imports":{"three":"./lib/three.module.min.js","three/addons/":"./lib/"}}</script>
 <script type="module">
@@ -142,6 +142,51 @@ const streetPalms=[];for(const p of dens(BLV,24)){streetPalms.push({x:p[0]+6,z:p
  const bg=new THREE.BoxGeometry(5,2.5,13);bg.translate(0,1,0);inst(bg,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.3}),boats,(b,o)=>{o.position.set(b.x,0,b.z);o.rotation.set(0,b.r,0)})}
 const roadsC=[];
 
+// ---------- bridges between islands ----------
+const brM={deck:new THREE.MeshStandardMaterial({color:0xd9d4ca,roughness:.7}),rail:new THREE.MeshStandardMaterial({color:0xf2f2f2,roughness:.5}),pylon:new THREE.MeshStandardMaterial({color:0xeeeeee,roughness:.4}),cable:new THREE.LineBasicMaterial({color:0xffffff}),asph:new THREE.MeshStandardMaterial({color:0x34363b,roughness:.85}),neon:new THREE.MeshBasicMaterial({color:0xff4fa3,toneMapped:false})};
+function bridge(a,b,o={}){const A=W(...a),B=W(...b);const dx=B[0]-A[0],dz=B[1]-A[1];const L=Math.hypot(dx,dz);const ang=Math.atan2(dx,dz);const w=o.w||14,H=o.h||14;
+ const g=new THREE.Group();g.position.set(A[0],0,A[1]);g.rotation.y=ang;scene.add(g);
+ const ya=Math.max(2,hAt(A[0],A[1]))+.8,yb=Math.max(2,hAt(B[0],B[1]))+.8;const N=Math.max(6,Math.round(L/18));
+ const yAt=t=>ya+(yb-ya)*t+Math.sin(t*Math.PI)*H;
+ for(let i=0;i<N;i++){const t0=i/N,t1=(i+1)/N;const y0=yAt(t0),y1=yAt(t1);const len=L/N;const seg=new THREE.Mesh(new THREE.BoxGeometry(w,1.6,len*1.02),brM.deck);seg.position.set(0,(y0+y1)/2-.8,(t0+t1)/2*L);seg.rotation.x=-Math.atan2(y1-y0,len);seg.castShadow=true;seg.receiveShadow=true;g.add(seg);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(w-2,.12,len*1.02),brM.asph);top.position.copy(seg.position);top.position.y+=.86;top.rotation.x=seg.rotation.x;g.add(top);
+  for(const s of [-1,1]){const r=new THREE.Mesh(new THREE.BoxGeometry(.4,1.1,len*1.02),brM.rail);r.position.set(s*(w/2-.2),seg.position.y+1.3,seg.position.z);r.rotation.x=seg.rotation.x;g.add(r);
+   if(o.neon){const n=new THREE.Mesh(new THREE.BoxGeometry(.15,.15,len*1.02),brM.neon);n.position.set(s*(w/2+.1),seg.position.y-.6,seg.position.z);n.rotation.x=seg.rotation.x;g.add(n)}}
+  // piers in the water
+  if(i>0&&i%2===0){const x=0,z=t0*L;const wx=A[0]+Math.sin(ang)*z,wz=A[1]+Math.cos(ang)*z;if(hAt(wx,wz)<1){const ph=y0+6;const p=new THREE.Mesh(new THREE.BoxGeometry(w*.55,ph,3),brM.pylon);p.position.set(0,y0-ph/2-1.2,z);g.add(p)}}}
+ if(o.cable){// cable-stayed: two pylons with fans of cables
+  for(const tp of [.33,.67]){const z=tp*L,yd=yAt(tp);const ph=o.cable;for(const s of [-1,1]){const p=new THREE.Mesh(new THREE.BoxGeometry(1.6,ph,2.2),brM.pylon);p.position.set(s*(w/2+1),yd+ph/2-2,z);p.castShadow=true;g.add(p)}
+   const beam=new THREE.Mesh(new THREE.BoxGeometry(w+4,2,2.2),brM.pylon);beam.position.set(0,yd+ph-3,z);g.add(beam);
+   const pts=[];for(const s of [-1,1])for(let k=1;k<=7;k++)for(const dir of [-1,1]){const zz=z+dir*k*L*.045;const t=zz/L;pts.push(new THREE.Vector3(s*(w/2+1),yd+ph-4-k*.6,z),new THREE.Vector3(s*(w/2-.3),yAt(t)+.6,zz))}
+   g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),brM.cable))}}
+ return g}
+// mainland <-> marina islands <-> each other, and the keys
+bridge([4.68,3.86],[4.96,3.82],{w:16,h:10,cable:48,neon:true});
+bridge([5.07,3.66],[5.03,3.39],{w:12,h:6,neon:true});
+bridge([4.98,3.14],[4.9,2.89],{w:12,h:6,neon:true});
+bridge([4.74,2.7],[4.48,2.62],{w:12,h:7});
+bridge([4.66,3.28],[4.9,3.26],{w:12,h:7});
+bridge([1.93,.62],[2.35,.33],{w:12,h:9,cable:34});
+// ---------- hillside villas (mountain slopes and lake shore) ----------
+const villas=[],pools=[],vroofs=[];
+for(let i=0;i<20000&&villas.length<140;i++){const x=-2100+rnd()*3400,z=-3600+rnd()*2400;const h=hAt(x,z);if(h<25||h>420)continue;if(coast(x,z)<60)continue;
+ if(!(inPoly(MOUNT,x,z)||segDist(MOUNT,x,z)<350))continue;
+ // keep only gentle spots
+ const e=12;const sl=Math.hypot(hAt(x+e,z)-hAt(x-e,z),hAt(x,z+e)-hAt(x,z-e))/(2*e);if(sl>.75)continue;
+ if(villas.some(v=>Math.hypot(v.x-x,v.z-z)<48))continue;
+ const r=rnd()*6.28,w=20+rnd()*14,d=12+rnd()*8;villas.push({x,z,y:h-2,w,d,h:6+rnd()*4,r,c:pick([0xffffff,0xf7efe2,0xffe9d6,0xeef4f7])});
+ vroofs.push({x,z,y:h-2+villas[villas.length-1].h,w:w+1.5,d:d+1.5,r,c:pick([0xb5543c,0x8c3b2b,0x3f4a55,0xd9d0c0])});
+ const px=x+Math.cos(r)*(w/2+6),pz=z-Math.sin(r)*(w/2+6);pools.push({x:px,z:pz,y:h-.3,w:9,d:5,r})}
+// lake-shore villas
+for(let i=0;i<1500;i++){const p=LAKE[(rnd()*LAKE.length)|0];const a=rnd()*6.28,k=60+rnd()*90;const x=p[0]+Math.cos(a)*k,z=p[1]+Math.sin(a)*k;if(inPoly(LAKE,x,z)||segDist(LAKE,x,z)<40)continue;if(villas.some(v=>Math.hypot(v.x-x,v.z-z)<45))continue;if(villas.length>230)break;
+ const h=hAt(x,z),r=rnd()*6.28,w=14+rnd()*8,d=11+rnd()*6;villas.push({x,z,y:h-1,w,d,h:6+rnd()*3,r,c:pick([0xffffff,0xf7efe2,0xffe9d6])});vroofs.push({x,z,y:h-1+villas[villas.length-1].h,w:w+1.5,d:d+1.5,r,c:pick([0xb5543c,0x3f4a55])})}
+inst(bgeo,bmat,villas,(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(b.w,b.h,b.d);o.rotation.set(0,b.r,0)});
+{const rg=new THREE.BoxGeometry(1,1,1);rg.translate(0,.5,0);inst(rg,new THREE.MeshStandardMaterial({color:0xffffff,roughness:.7}),vroofs,(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(b.w,.9,b.d);o.rotation.set(0,b.r,0)});
+ inst(rg,new THREE.MeshStandardMaterial({color:0x3ec5e8,roughness:.05,metalness:.2}),pools,(b,o)=>{o.position.set(b.x,b.y,b.z);o.scale.set(b.w,.5,b.d);o.rotation.set(0,b.r,0)})}
+// winding road up the mountain
+{const P=[];let x=W(2.55,5.35)[0],z=W(2.55,5.35)[1];for(let i=0;i<70;i++){P.push([x,z]);const t=i*.22;x+=Math.sin(t)*38-6;z-=22}ribbonM(dens(P,12),9,0x3a3c40,false)}
+label('Tog\' villalari',1.6,6.05,300);
+
 // neon rims on some towers
 {const rim=[];towers.forEach(t=>{if(rnd()<.3){const c=pick([0xff2fa0,0x22e8ff,0xb04dff,0xffe14d]);const y=t.y+t.h-1.5;rim.push({x:t.x,z:t.z+t.d/2,y,w:t.w,d:.8,c},{x:t.x,z:t.z-t.d/2,y,w:t.w,d:.8,c},{x:t.x+t.w/2,z:t.z,y,w:.8,d:t.d,c},{x:t.x-t.w/2,z:t.z,y,w:.8,d:t.d,c})}});inst(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false}),rim,(t,o)=>{o.position.set(t.x,t.y,t.z);o.scale.set(t.w,1.4,t.d)})}
 // ---------- highways ----------
@@ -171,8 +216,6 @@ hw([[4.4,5.6],[4.45,5.0],[4.5,4.4]],12);
 hw([[1.0,4.5],[1.4,3.8],[1.8,3.2],[2.4,3.0],[3.0,2.75],[3.7,2.5]]);
 hw([[3.6,2.3],[3.3,1.7],[2.9,1.15],[2.4,.95],[2.0,.85],[1.6,.7]],14);
 hw([[3.85,2.2],[3.7,1.5],[3.45,.9]],12);
-// marina bridges
-for(const [a,b] of [[[4.72,3.78],[4.97,3.78]],[[4.68,3.26],[4.9,3.26]],[[4.55,2.76],[4.76,2.76]]])hw([a,b],12);
 // ---------- airport ----------
 {const A=W(3.0,3.2);const g=new THREE.Group();g.position.set(A[0],hAt(A[0],A[1])+.3,A[1]);g.rotation.y=-.22;
  const apron=new THREE.Mesh(new THREE.BoxGeometry(900,.4,520),new THREE.MeshStandardMaterial({color:0x9a9c98,roughness:.9}));apron.receiveShadow=true;g.add(apron);
@@ -218,7 +261,7 @@ label("Qoratog' milliy bog'i",2.1,6.45,520,1.1);label("Ko'k ko'l",3.45,5.45,60);
 label('Marina orollari',5.05,3.5,80);label('Aeroport',3.0,3.42,80);label('Qamishzor',2.25,1.9,60);label('Marjon orollari',1.5,.6,70);label('Ocean Drive',4.8,2.4,60);
 // ---------- views ----------
 const vw=(cx,cy,tx,ty,h,ty2=0)=>{const a=W(cx,cy),b=W(tx,ty);return [[a[0],h,a[1]],[b[0],ty2,b[1]]]};
-const V={all:vw(2.6,-3.2,2.6,3.6,8200),city:vw(5.6,2.4,4.1,3.65,700,40),marina:vw(5.7,3.0,4.9,3.35,330,10),mount:vw(2.4,4.6,2.0,6.5,1100,300),south:vw(3.4,-.6,2.2,1.5,1300)};
+const V={all:vw(2.6,-3.2,2.6,3.6,8200),city:vw(5.6,2.4,4.1,3.65,700,40),marina:vw(5.7,3.0,4.9,3.35,330,10),mount:vw(2.4,4.6,2.0,6.5,1100,300),south:vw(3.4,-.6,2.2,1.5,1300),villa:[[1300,450,-1200],[700,60,-1950]],bridge:[[2900,160,950],[2350,20,150]]};
 let anim=null;function go(k){const [p,t]=V[k];anim={p0:cam.position.clone(),t0:ctr.target.clone(),p1:new THREE.Vector3(...p),t1:new THREE.Vector3(...t),k:0};document.querySelectorAll('#ui button[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===k))}
 document.querySelectorAll('#ui button[data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));window.goNow=k=>{go(k);anim.k=.999};window.camSet=(p,t)=>{anim=null;cam.position.set(...p);ctr.target.set(...t);ctr.update()};
 let night=false;document.getElementById('night').onclick=e=>{night=!night;e.target.classList.toggle('on',night);
