@@ -800,27 +800,38 @@ function toggleCar(){if(mode!=='city'||!hero)return;if(onFoot){if(!hero.dead&&he
 
 
 // ---------- HERO 3D MODEL (Tripo, auto-skinned) ----------
-let HERO_GLTF=null;
-async function loadHeroModel(){try{const txt=await (await fetch('models/hero.txt')).text();const bin=Uint8Array.from(atob(txt.trim()),c=>c.charCodeAt(0));HERO_GLTF=await new Promise((ok,err)=>loader.parse(bin.buffer,'',ok,err))}catch(e){console.warn('hero model',e)}}
-let _heroGeo=null,_heroMat=null;
-function heroGeo(){if(_heroGeo)return _heroGeo;let src=null;HERO_GLTF.scene.traverse(o=>{if(o.isMesh&&!src)src=o});if(!src)return null;
- src.updateWorldMatrix(true,false);const geo=src.geometry.clone();geo.applyMatrix4(src.matrixWorld);geo.computeBoundingBox();const bb=geo.boundingBox;const H=bb.max.y-bb.min.y;
- geo.translate(0,-bb.min.y,0);geo.scale(1/H,1/H,1/H);
- const V=(x,y,z=0)=>new THREE.Vector3(x,y,z);
- // bone order: root,hips,spine,chest,head,sw0,lw0,el0,sw1,lw1,el1,hp0,kn0,hp1,kn1
- const segs=[[1,V(0,.40),V(0,.52),0],[2,V(0,.52),V(0,.62),0],[3,V(0,.62),V(0,.78),0],[4,V(0,.78),V(0,1.05),0],
-  [6,V(-.12,.69),V(-.29,.68),-1],[7,V(-.29,.68),V(-.52,.67),-1],[9,V(.12,.69),V(.29,.68),1],[10,V(.29,.68),V(.52,.67),1],
-  [11,V(-.07,.46),V(-.075,.24),-1],[12,V(-.075,.24),V(-.08,-.02),-1],[13,V(.07,.46),V(.075,.24),1],[14,V(.075,.24),V(.08,-.02),1]];
- const pos=geo.attributes.position,n=pos.count;const si=new Uint16Array(n*4),swt=new Float32Array(n*4);const P=new THREE.Vector3(),ab=new THREE.Vector3(),ap=new THREE.Vector3();
- for(let v=0;v<n;v++){P.fromBufferAttribute(pos,v);const c=[];
-  for(const [bi,a,b,side] of segs){if(side&&P.x*side<-.025)continue;ab.subVectors(b,a);ap.subVectors(P,a);const t=THREE.MathUtils.clamp(ap.dot(ab)/ab.lengthSq(),0,1);const d=ap.sub(ab.multiplyScalar(t)).length();
-   let pen=0;if(bi>=6&&bi<=10){if(Math.abs(P.x)<.115)pen=.2}if((bi===11||bi===13)&&P.y>.5)pen=.2;c.push([bi,1/Math.pow(d+pen+.004,4)])}
+let HERO_GLTF=null;const PED_GLTF={};const PED_KINDS=['hijab','doctor','oldsuit','overalls','young'];
+const parseB64=async u=>{const txt=await (await fetch(u)).text();const bin=Uint8Array.from(atob(txt.trim()),c=>c.charCodeAt(0));return await new Promise((ok,err)=>loader.parse(bin.buffer,'',ok,err))};
+async function loadHeroModel(){try{HERO_GLTF=await parseB64('models/hero.txt')}catch(e){console.warn('hero model',e)}
+ await Promise.all(PED_KINDS.map(async k=>{try{PED_GLTF[k]=await parseB64('models/ped_'+k+'.txt')}catch(e){console.warn('ped model',k,e)}}))}
+// measure a T/A-pose body (unit height, facing +z) to place the joints
+function measureBody(geo){const p=geo.attributes.position,n=p.count;let sx=0,sy=0,sxx=0,sxy=0,cn=0,hand=0,lx=[],rx=[];
+ for(let i=0;i<n;i++){const x=p.getX(i),y=p.getY(i),ax=Math.abs(x);if(ax>hand)hand=ax;if(y<.12){(x<0?lx:rx).push(x)}}
+ for(let i=0;i<n;i++){const x=p.getX(i),y=p.getY(i),ax=Math.abs(x);if(ax>.3&&ax<hand-.04&&y>.45){sx+=ax;sy+=y;sxx+=ax*ax;sxy+=ax*y;cn++}}
+ const b=cn>10?(cn*sxy-sx*sy)/(cn*sxx-sx*sx):0,a=cn>10?(sy-b*sx)/cn:.68;const droop=THREE.MathUtils.clamp(-b,0,1.2);
+ const armTop=y=>a+b*y;let tw=0;const ty=a+b*.3-.1;for(let i=0;i<n;i++){const x=p.getX(i),y=p.getY(i);if(Math.abs(y-ty)<.03&&Math.abs(x)<.24)tw=Math.max(tw,Math.abs(x))}
+ const med=v=>{v.sort((q,w)=>q-w);return v.length?v[v.length>>1]:0};const lg=(Math.abs(med(lx))+Math.abs(med(rx)))/2||.07;
+ const shX=THREE.MathUtils.clamp(tw+.005,.09,.17),armY=a+b*shX;
+ return {armY,shX,elX:(shX+hand)/2,handX:hand,droop,hipY:.47,legX:THREE.MathUtils.clamp(lg,.05,.11),kneeY:.26,neckY:Math.min(.84,armY+.11)}}
+const HERO_P={armY:.69,shX:.13,elX:.29,handX:.52,droop:.02,hipY:.46,legX:.07,kneeY:.24,neckY:.78};
+const _rig={};
+function rigModel(kind){if(_rig[kind])return _rig[kind];const G=kind==='hero'?HERO_GLTF:PED_GLTF[kind];if(!G)return null;let src=null;G.scene.traverse(o=>{if(o.isMesh&&!src)src=o});if(!src)return null;
+ src.updateWorldMatrix(true,false);const geo=new THREE.BufferGeometry();['position','normal','uv'].forEach(a=>{if(src.geometry.attributes[a])geo.setAttribute(a,src.geometry.attributes[a].clone())});if(src.geometry.index)geo.setIndex(src.geometry.index.clone());
+ geo.applyMatrix4(src.matrixWorld);geo.computeBoundingBox();let bb=geo.boundingBox;const H=bb.max.y-bb.min.y;geo.translate(-(bb.max.x+bb.min.x)/2,-bb.min.y,-(bb.max.z+bb.min.z)/2);geo.scale(1/H,1/H,1/H);if(!geo.attributes.normal)geo.computeVertexNormals();
+ const P=kind==='hero'?HERO_P:measureBody(geo);const V=(x,y,z=0)=>new THREE.Vector3(x,y,z);const ay=x=>P.armY-P.droop*(x-P.shX);
+ const segs=[[1,V(0,P.hipY-.07),V(0,P.hipY+.06),0],[2,V(0,P.hipY+.06),V(0,P.hipY+.16),0],[3,V(0,P.hipY+.16),V(0,P.neckY),0],[4,V(0,P.neckY),V(0,1.05),0],
+  [6,V(-P.shX+.01,P.armY),V(-P.elX,ay(P.elX)),-1],[7,V(-P.elX,ay(P.elX)),V(-P.handX,ay(P.handX)),-1],[9,V(P.shX-.01,P.armY),V(P.elX,ay(P.elX)),1],[10,V(P.elX,ay(P.elX)),V(P.handX,ay(P.handX)),1],
+  [11,V(-P.legX,P.hipY),V(-P.legX-.005,P.kneeY),-1],[12,V(-P.legX-.005,P.kneeY),V(-P.legX-.01,-.02),-1],[13,V(P.legX,P.hipY),V(P.legX+.005,P.kneeY),1],[14,V(P.legX+.005,P.kneeY),V(P.legX+.01,-.02),1]];
+ const pos=geo.attributes.position,n=pos.count;const si=new Uint16Array(n*4),swt=new Float32Array(n*4);const Q=new THREE.Vector3(),ab=new THREE.Vector3(),ap=new THREE.Vector3();
+ for(let v=0;v<n;v++){Q.fromBufferAttribute(pos,v);const c=[];
+  for(const [bi,a,b,side] of segs){if(side&&Q.x*side<-.025)continue;ab.subVectors(b,a);ap.subVectors(Q,a);const t=THREE.MathUtils.clamp(ap.dot(ab)/ab.lengthSq(),0,1);const d=ap.sub(ab.multiplyScalar(t)).length();
+   let pen=0;if(bi>=6&&bi<=10){if(Math.abs(Q.x)<P.shX-.015)pen=.2}if((bi>=11)&&Q.y>P.hipY+.04)pen=.2;if(bi===4&&Q.y<P.neckY-.02)pen=.2;c.push([bi,1/Math.pow(d+pen+.004,4)])}
   c.sort((x,y)=>y[1]-x[1]);const w0=c[0][1],w1=c[1]?c[1][1]:0,sum=w0+w1;si[v*4]=c[0][0];si[v*4+1]=c[1]?c[1][0]:0;swt[v*4]=w0/sum;swt[v*4+1]=w1/sum}
  geo.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));geo.setAttribute('skinWeight',new THREE.Float32BufferAttribute(swt,4));
- _heroMat=src.material;_heroGeo=geo;return geo}
-// per-person look: recolour clothes/skin/hair of the shared model in the shader
-function lookMaterial(look){const m=_heroMat.clone();m.roughness=.85;m.metalness=0;
- if(!look||look.hero)return m;
+ return _rig[kind]={geo,P,mat:src.material}}
+// per-person look: recolour clothes/skin/hair of the shared hero model in the shader
+function lookMaterial(look,base){const m=base.clone();m.roughness=.85;m.metalness=0;
+ if(!look||look.hero||look.model)return m;
  const U={uShirt:{value:new THREE.Color(look.shirt)},uPants:{value:new THREE.Color(look.pants)},uSkin:{value:new THREE.Color(look.skin||0xffffff)},uHair:{value:new THREE.Color(look.hair)}};
  m.onBeforeCompile=sh=>{Object.assign(sh.uniforms,U);
   sh.vertexShader='varying vec3 vLp;\n'+sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvLp=position;');
@@ -837,19 +848,19 @@ const LOOKS={
  woman(){const d=pick([0xb0306a,0x2f6fb0,0x7a3fa0,0x2f8a6a,0xc0503a,0xe0b030,0x303a60,0xa02030]);return{shirt:d,pants:d,skin:pick([0xffffff,0xf0d8c0,0xd9b090]),hair:pick([0x1a120c,0x3b2414]),h:1.55+Math.random()*.12,w:.86+Math.random()*.08,hat:Math.random()<.75?'scarf':null,scarf:pick([0xffffff,0xf2c94c,0xd93a6a,0x2f9e57,0x88c0e0,0xe8a0c0]),dress:d}},
  worker(){const c=pick([0xff7f27,0x2b5fb0,0x3a7a3a]);return{shirt:c,pants:c,skin:pick([0xf0d8c0,0xd9b090,0xc09070]),hair:0x1a120c,h:1.7+Math.random()*.12,w:1.02+Math.random()*.12,hat:'cap',capC:pick([0xf2c94c,0xffffff,0xff7f27])}},
  cop(){return{shirt:0x24408e,pants:0x161e33,skin:pick([0xffffff,0xf0d8c0,0xd9b090]),hair:0x111111,h:1.76,w:1.06,hat:'police'}},
- random(){const r=Math.random();return r<.36?this.man():r<.52?this.old():r<.88?this.woman():this.worker()}};
-function upgradeHero(p,look){if(!HERO_GLTF)return;const geo=heroGeo();if(!geo)return;look=look||{hero:true};
- const B=n=>{const b=new THREE.Bone();b.name=n;return b};
+ model(){const k=pick(PED_KINDS.filter(k=>PED_GLTF[k]));if(!k)return this.man();const fem=k==='hijab'||k==='doctor';return{model:k,h:(fem?1.6:1.72)+Math.random()*.12,w:.95+Math.random()*.1}},
+ random(){const r=Math.random();if(r<.55&&PED_KINDS.some(k=>PED_GLTF[k]))return this.model();const q=Math.random();return q<.36?this.man():q<.52?this.old():q<.88?this.woman():this.worker()}};
+function upgradeHero(p,look){look=look||{hero:true};const R=rigModel(look.model||'hero');if(!R)return;const geo=R.geo,P=R.P;
+ const B=n=>{const b=new THREE.Bone();b.name=n;return b};const chestY=P.hipY+.2;
  const root=B('root'),hips=B('hips'),spine=B('spine'),chest=B('chest'),head=B('head');
- hips.position.set(0,.46,0);root.add(hips);spine.position.set(0,.10,0);hips.add(spine);chest.position.set(0,.10,0);spine.add(chest);head.position.set(0,.14,0);chest.add(head);
- const sw=[],lw=[],el=[],hp=[],kn=[];
- [-1,1].forEach((s,i)=>{const a=B('swing'+i),l=B('lower'+i),e=B('elbow'+i);a.position.set(s*.13,.69-.66,0);chest.add(a);a.add(l);e.position.set(s*.16,-.01,0);l.add(e);sw[i]=a;lw[i]=l;el[i]=e;
-  const h=B('hip'+i),k=B('knee'+i);h.position.set(s*.07,-.01,0);hips.add(h);k.position.set(s*.005,-.21,0);h.add(k);hp[i]=h;kn[i]=k});
+ hips.position.set(0,P.hipY,0);root.add(hips);spine.position.set(0,.10,0);hips.add(spine);chest.position.set(0,.10,0);spine.add(chest);head.position.set(0,P.neckY-chestY,0);chest.add(head);
+ const sw=[],lw=[],el=[],hp=[],kn=[];const rest=Math.atan(P.droop);
+ [-1,1].forEach((s,i)=>{const a=B('swing'+i),l=B('lower'+i),e=B('elbow'+i);a.position.set(s*P.shX,P.armY-chestY,0);chest.add(a);a.add(l);e.position.set(s*(P.elX-P.shX),-P.droop*(P.elX-P.shX),0);l.add(e);sw[i]=a;lw[i]=l;el[i]=e;
+  const h=B('hip'+i),k=B('knee'+i);h.position.set(s*P.legX,-.01,0);hips.add(h);k.position.set(s*.005,P.kneeY-(P.hipY-.01),0);h.add(k);hp[i]=h;kn[i]=k});
  const bones=[root,hips,spine,chest,head,sw[0],lw[0],el[0],sw[1],lw[1],el[1],hp[0],kn[0],hp[1],kn[1]];
- const mat=lookMaterial(look);
+ const mat=lookMaterial(look,R.mat);
  const mesh=new THREE.SkinnedMesh(geo,mat);mesh.castShadow=true;mesh.frustumCulled=false;mesh.add(root);root.updateMatrixWorld(true);mesh.bind(new THREE.Skeleton(bones));
  const holder=new THREE.Group();const hh=look.h||1.78,ww=look.w||1;holder.scale.set(hh*ww,hh,hh*ww);holder.add(mesh);
- // accessories (unit-height space, attached to bones)
  const am=c=>new THREE.MeshStandardMaterial({color:c,roughness:.8});
  const add=(bone,geo2,c,x,y,z,rx=0,ry=0)=>{const m=new THREE.Mesh(geo2,am(c));m.position.set(x,y,z);m.rotation.set(rx,ry,0);m.castShadow=true;bone.add(m);return m};
  if(look.hat==='doppi'){add(head,new THREE.CylinderGeometry(.095,.1,.065,4),0x111111,0,.19,.008,0,Math.PI/4);add(head,new THREE.CylinderGeometry(.102,.102,.014,4),0xeeeeee,0,.17,.008,0,Math.PI/4);add(head,new THREE.CylinderGeometry(.097,.097,.01,4),0xeeeeee,0,.205,.008,0,Math.PI/4)}
@@ -861,9 +872,9 @@ function upgradeHero(p,look){if(!HERO_GLTF)return;const geo=heroGeo();if(!geo)re
  p.body.traverse(o=>{if(o.isMesh)o.visible=false});p.body.add(holder);
  const gunM=new THREE.Group();gunM.position.set(.2,0,0);el[1].add(gunM);
  p.skin={mesh,mat,sw,lw,el,hp,kn,chest,spine,gunMount:gunM,look,
-  sync(q){const L=1.32;for(let i=0;i<2;i++){const s=i?1:-1;sw[i].rotation.x=q.arm[i].rotation.x;lw[i].rotation.z=-s*L;el[i].rotation.y=(i?1:-1)*q.elb[i].rotation.x*.9;hp[i].rotation.x=q.leg[i].rotation.x;kn[i].rotation.x=q.knee[i].rotation.x}
+  sync(q){const L=1.32-rest;for(let i=0;i<2;i++){const s=i?1:-1;sw[i].rotation.x=q.arm[i].rotation.x;lw[i].rotation.z=-s*L;el[i].rotation.y=(i?1:-1)*q.elb[i].rotation.x*.9;hp[i].rotation.x=q.leg[i].rotation.x;kn[i].rotation.x=q.knee[i].rotation.x}
    chest.rotation.y=q.chest.rotation.y;chest.rotation.x=q.chest.rotation.x;}};
- p.skin.setShirt=c=>{if(mat.userData.U)mat.userData.U.uShirt.value.set(c)};
+ p.skin.setShirt=c=>{if(mat.userData.U)mat.userData.U.uShirt.value.set(c);else mat.color.set(c).lerp(new THREE.Color(0xffffff),.35)};
 }
 
 // ---------- INPUT ----------
