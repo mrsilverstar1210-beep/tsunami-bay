@@ -53,12 +53,14 @@ const pos=tg.attributes.position,cols=new Float32Array(pos.count*3);const C=new 
 function distPL0(P,x,z){let m=1e9;for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i];const dx=b[0]-a[0],dz=b[1]-a[1];let t=((x-a[0])*dx+(z-a[1])*dz)/(dx*dx+dz*dz);t=Math.max(0,Math.min(1,t));m=Math.min(m,Math.hypot(a[0]+dx*t-x,a[1]+dz*t-z))}return m}
 const CANALS=[{P:toM([[4.9,4.02],[4.62,4.0],[4.42,3.93],[4.3,3.82]]),w:46,basin:W(4.28,3.8),r:95},{P:toM([[4.7,2.98],[4.47,3.03],[4.26,2.93],[4.12,2.86]]),w:40,basin:W(4.1,2.85),r:75},{P:toM([[4.55,4.6],[4.35,4.52],[4.2,4.6]]),w:34,basin:W(4.18,4.62),r:55}];
 function canalDist(x,z){let m=1e9;for(const c of CANALS){m=Math.min(m,distPL0(c.P,x,z)-c.w/2,Math.hypot(x-c.basin[0],z-c.basin[1])-c.r)}return m}
+function forestK(x,z){const s=inPoly(SWAMP,x,z)?segDist(SWAMP,x,z):-segDist(SWAMP,x,z);return Math.max(0,Math.min(1,(s+260+fbm(x/200,z/200)*220)/420))}
 function height(x,z){const d=coast(x,z);if(d<0)return Math.max(-60,d*.12-1.2);
  let h=1.2+Math.min(d,140)/140*3.5;
  const rolling=fbm(x/900,z/900)*18*Math.min(1,d/400);h+=Math.max(0,rolling+6);
  if(inPoly(MOUNT,x,z)){const md=segDist(MOUNT,x,z);const k=Math.min(1,md/450);h+=k*(420+fbm(x/500,z/500,6)*420)+Math.abs(fbm(x/160,z/160,4))*140*k}
  if(inPoly(LAKE,x,z)){h=-6}else{const ld=segDist(LAKE,x,z);if(ld<80)h=Math.min(h,1.5+ld*.12)}
- if(inPoly(CITY,x,z)||inPoly(SWAMP,x,z))h=Math.min(h,3+Math.max(0,fbm(x/600,z/600))*3);
+ if(inPoly(CITY,x,z))h=Math.min(h,3+Math.max(0,fbm(x/600,z/600))*3);
+ if(inPoly(SWAMP,x,z)){const sd=segDist(SWAMP,x,z);h+=Math.min(1,sd/300)*(18+fbm(x/350,z/350)*30)}
  {const cd=canalDist(x,z);if(cd<0)h=Math.min(h,-5);else if(cd<20)h=Math.min(h,.8+cd*.12)}
  return h}
 const HM=new Float32Array(pos.count);
@@ -66,10 +68,9 @@ for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=pos.getZ(i);const h=height(x,
  if(h<-0.5){C.setRGB(.45,.72,.66).lerp(new THREE.Color(.03,.13,.24),Math.min(1,-h/25))}
  else if(d<45)C.setRGB(.93,.85,.62);
  else if(canalDist(x,z)<12)C.setRGB(.75,.72,.66);
- else if(inPoly(SWAMP,x,z))C.setRGB(.24,.33,.16).lerp(new THREE.Color(.25,.35,.3),fbm(x/90,z/90)*.5+.5);
- else if(h>120){const r=Math.min(1,(h-120)/380);C.setRGB(.13,.27,.1).lerp(new THREE.Color(.47,.44,.38),r*r)}
+  else if(h>120){const r=Math.min(1,(h-120)/380);C.setRGB(.13,.27,.1).lerp(new THREE.Color(.47,.44,.38),r*r)}
  else if(inPoly(CITY,x,z))C.setRGB(.24,.25,.27);
- else{const n=fbm(x/400,z/400)*.5+.5;C.setRGB(.17+n*.1,.33+n*.1,.11+n*.04)}
+ else{const n=fbm(x/400,z/400)*.5+.5;C.setRGB(.17+n*.1,.33+n*.1,.11+n*.04);const fk=forestK(x,z);if(fk>0)C.lerp(new THREE.Color(.1,.24,.08),fk*.9)}
  cols[i*3]=C.r;cols[i*3+1]=C.g;cols[i*3+2]=C.b}
 tg.setAttribute('color',new THREE.BufferAttribute(cols,3));tg.computeVertexNormals();
 const terrain=new THREE.Mesh(tg,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.95,flatShading:false}));terrain.receiveShadow=true;terrain.castShadow=true;scene.add(terrain);
@@ -237,9 +238,12 @@ hw([[3.85,2.2],[3.7,1.5],[3.45,.9]],12);
  for(let i=0;i<14000;i++){const x=-3200+rnd()*6400,z=-3800+rnd()*7600;const d=coast(x,z);if(d<30)continue;const h=hAt(x,z);if(h<1.6)continue;
   if(inPoly(CITY,x,z)||inPoly(YO,x,z)||canalDist(x,z)<10)continue;
   if(inPoly(MOUNT,x,z)){if(h<420&&rnd()<.9)pine.push({x,z,y:h,s:.8+rnd()*.8,c:new THREE.Color().setHSL(.3+rnd()*.05,.45,.18+rnd()*.08).getHex()})}
-  else if(inPoly(SWAMP,x,z)){if(rnd()<.35)round.push({x,z,y:h,s:.6+rnd()*.5,c:0x3e5f2e})}
+  else if(inPoly(SWAMP,x,z)){/* forest handled below */}
   else if(d<160&&rnd()<.3)palm.push({x,z,y:h,s:.8+rnd()*.4,c:0x3f9a45});
   else if(rnd()<.12)round.push({x,z,y:h,s:.7+rnd()*.7,c:new THREE.Color().setHSL(.25+rnd()*.06,.45,.25+rnd()*.1).getHex()})}
+ // southern forest (former swamp): dense mixed trees with a few clearings
+ for(let i=0;i<46000;i++){const x=-2300+rnd()*3700,z=0+rnd()*4100;const fd=forestK(x,z);if(rnd()>fd)continue;const d=coast(x,z);if(d<40)continue;if(fbm(x/260,z/260)>.42)continue;const h=hAt(x,z);
+  if(rnd()<.45)pine.push({x,z,y:h,s:.7+rnd()*.7,c:new THREE.Color().setHSL(.3+rnd()*.05,.45,.15+rnd()*.07).getHex()});else round.push({x,z,y:h,s:.8+rnd()*.7,c:new THREE.Color().setHSL(.23+rnd()*.08,.5,.18+rnd()*.1).getHex()})}
  // city palms along streets
  for(const p of streetPalms)palm.push({x:p.x,z:p.z,y:p.y,s:.9,c:0x3f9a45});for(const t of parkTrees)round.push({x:t.x,z:t.z,y:t.y,s:.7+rnd()*.4,c:new THREE.Color().setHSL(.27+rnd()*.05,.5,.27).getHex()});
  const cone=new THREE.ConeGeometry(5,18,6);cone.translate(0,13,0);const cyl=new THREE.CylinderGeometry(.8,1,5,5);cyl.translate(0,2.5,0);
@@ -248,9 +252,6 @@ hw([[3.85,2.2],[3.7,1.5],[3.45,.9]],12);
  const ball=new THREE.IcosahedronGeometry(6,0);ball.translate(0,9,0);inst(ball,pm,round,(t,o)=>{o.position.set(t.x,t.y,t.z);o.scale.setScalar(t.s);o.rotation.set(0,rnd()*6,0)});
  const pc=new THREE.ConeGeometry(5,3,7);pc.translate(0,12,0);inst(pc,pm,palm,(t,o)=>{o.position.set(t.x,t.y,t.z);o.scale.setScalar(t.s);o.rotation.set(0,rnd()*6,0)});
  inst(new THREE.CylinderGeometry(.4,.6,12,5).translate(0,6,0),new THREE.MeshStandardMaterial({color:0x8a6a48}),palm,(t,o)=>{o.position.set(t.x,t.y,t.z);o.scale.setScalar(t.s)})}
-// swamp ponds
-{const ponds=[];for(let i=0;i<420;i++){const x=-2000+rnd()*3000,z=600+rnd()*3200;if(inPoly(SWAMP,x,z)&&coast(x,z)>60)ponds.push({x,z,r:15+rnd()*45})}
- const pg=new THREE.CircleGeometry(1,12);pg.rotateX(-Math.PI/2);inst(pg,new THREE.MeshStandardMaterial({color:0x3f7f8a,roughness:.1,metalness:.3}),ponds,(p,o)=>{o.position.set(p.x,hAt(p.x,p.z)+.25,p.z);o.scale.set(p.r,1,p.r*.7);o.rotation.set(0,rnd()*3,0)})}
 // beach umbrellas along east coast of city
 {const um=[];for(let i=0;i<600;i++){const x=1200+rnd()*1400,z=-1800+rnd()*3400;const d=coast(x,z);if(d>5&&d<35)um.push({x,z,c:pick([0xff4fa3,0x22d3ee,0xffd23d,0xff7a2f,0xffffff])})}
  const ug=new THREE.ConeGeometry(2.4,1,8);ug.translate(0,3,0);inst(ug,new THREE.MeshStandardMaterial({color:0xffffff}),um,(u,o)=>{o.position.set(u.x,hAt(u.x,u.z),u.z)})}
@@ -258,7 +259,7 @@ hw([[3.85,2.2],[3.7,1.5],[3.45,.9]],12);
 function label(t,x,y,h,size=1){const c=document.createElement('canvas');const g=c.getContext('2d');g.font='800 44px system-ui,sans-serif';const w=g.measureText(t).width+40;c.width=w;c.height=70;g.font='800 44px system-ui,sans-serif';g.fillStyle='rgba(10,20,35,.65)';g.beginPath();g.roundRect(0,0,w,70,20);g.fill();g.fillStyle='#fff';g.textBaseline='middle';g.fillText(t,20,37);
  const tx=new THREE.CanvasTexture(c);tx.colorSpace=THREE.SRGBColorSpace;const s=new THREE.Sprite(new THREE.SpriteMaterial({map:tx,depthTest:false,sizeAttenuation:false}));s.scale.set(w/70*.045*size,.045*size,1);const p=W(x,y);s.position.set(p[0],hAt(p[0],p[1])+h,p[1]);s.renderOrder=10;scene.add(s)}
 label("Qoratog' milliy bog'i",2.1,6.45,520,1.1);label("Ko'k ko'l",3.45,5.45,60);label("G'arbiy port",.72,5.6,90);label('Yangiobod',2.65,4.85,80);label('TSUNAMI BAY',4.15,3.62,330,1.4);
-label('Marina orollari',5.05,3.5,80);label('Aeroport',3.0,3.42,80);label('Qamishzor',2.25,1.9,60);label('Marjon orollari',1.5,.6,70);label('Ocean Drive',4.8,2.4,60);
+label('Marina orollari',5.05,3.5,80);label('Aeroport',3.0,3.42,80);label("Qamishzor o'rmoni",2.25,1.9,90);label('Marjon orollari',1.5,.6,70);label('Ocean Drive',4.8,2.4,60);
 // ---------- views ----------
 const vw=(cx,cy,tx,ty,h,ty2=0)=>{const a=W(cx,cy),b=W(tx,ty);return [[a[0],h,a[1]],[b[0],ty2,b[1]]]};
 const V={all:vw(2.6,-3.2,2.6,3.6,8200),city:vw(5.6,2.4,4.1,3.65,700,40),marina:vw(5.7,3.0,4.9,3.35,330,10),mount:vw(2.4,4.6,2.0,6.5,1100,300),south:vw(3.4,-.6,2.2,1.5,1300),villa:[[1300,450,-1200],[700,60,-1950]],bridge:[[2900,160,950],[2350,20,150]]};
