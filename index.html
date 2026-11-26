@@ -430,10 +430,10 @@ let _seed=1;const srnd=()=>{_seed=(_seed*16807)%2147483647;return (_seed-1)/2147
   boxF('plain',f,0,.7,-.5,3.6,.08,.45,0x8d6e4b);boxF('plain',f,0,2.72,.86,4.2,.5,.06,0x1565c0);signF(f,0,2.74,.9,3.6,.46,32)});
 
  const mats={
-  res:new THREE.MeshStandardMaterial({map:resT,emissiveMap:resE,emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:.85}),
-  tower:new THREE.MeshStandardMaterial({map:towT,emissiveMap:towE,emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:.22,metalness:.55}),
-  deco:new THREE.MeshStandardMaterial({map:decT,emissiveMap:decE,emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:.6,side:THREE.DoubleSide}),
-  ind:new THREE.MeshStandardMaterial({map:indT,emissiveMap:indE,emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:.8,metalness:.2}),
+  res:new THREE.MeshStandardMaterial({map:ptex('fac_res_d'),emissiveMap:ptex('fac_res_e'),normalMap:ptex('fac_res_n',0,false),roughnessMap:ptex('fac_res_r',0,false),metalnessMap:ptex('fac_res_r',0,false),emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:1,metalness:1}),
+  tower:new THREE.MeshStandardMaterial({map:ptex('fac_tower_d'),emissiveMap:ptex('fac_tower_e'),normalMap:ptex('fac_tower_n',0,false),roughnessMap:ptex('fac_tower_r',0,false),metalnessMap:ptex('fac_tower_r',0,false),emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:1,metalness:1,envMapIntensity:2.2}),
+  deco:new THREE.MeshStandardMaterial({map:ptex('fac_deco_d'),emissiveMap:ptex('fac_deco_e'),normalMap:ptex('fac_deco_n',0,false),roughnessMap:ptex('fac_deco_r',0,false),metalnessMap:ptex('fac_deco_r',0,false),emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:1,metalness:1,side:THREE.DoubleSide}),
+  ind:new THREE.MeshStandardMaterial({map:ptex('fac_ind_d'),emissiveMap:ptex('fac_ind_e'),normalMap:ptex('fac_ind_n',0,false),roughnessMap:ptex('fac_ind_r',0,false),metalnessMap:ptex('fac_ind_r',0,false),emissive:0xffffff,emissiveIntensity:0,vertexColors:true,roughness:1,metalness:1}),
   plain:new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85}),
   shop:new THREE.MeshStandardMaterial({map:shopT,emissiveMap:shopT,emissive:0xffffff,emissiveIntensity:.25,vertexColors:true,roughness:.3}),
   sign:new THREE.MeshStandardMaterial({map:signT,emissiveMap:signT,emissive:0xffffff,emissiveIntensity:.35,roughness:.5}),
@@ -543,7 +543,7 @@ let _seed=1;const srnd=()=>{_seed=(_seed*16807)%2147483647;return (_seed-1)/2147
    if(d<R){const lo=d>HI;if(!ch)need.push([d,ci,cj,key,lo]);else if(ch.lo&&!lo)need.push([d-1000,ci,cj,key,false]);else if(!ch.lo&&d>HI+90)need.push([d+500,ci,cj,key,true])}else if(d>R+150&&ch)dropChunk(key)}
   need.sort((a,b)=>a[0]-b[0]);const n=now?need.length:Math.min(1,need.length);for(let q=0;q<n;q++){const [,ci,cj,key,lo]=need[q];if(chunks.has(key))dropChunk(key);chunks.set(key,genChunk(ci,cj,lo))}};
  const bgeo=new THREE.BoxGeometry(1,1,1);bgeo.translate(0,.5,0);
- const skyMat=new THREE.MeshStandardMaterial({map:towT,emissiveMap:towE,emissive:0xffffff,emissiveIntensity:0,roughness:.5});window._winMats.push(skyMat);
+ const skyMat=new THREE.MeshStandardMaterial({map:ptex('fac_tower_d'),emissiveMap:ptex('fac_tower_e'),emissive:0xffffff,emissiveIntensity:0,roughness:.3,metalness:.6});window._winMats.push(skyMat);
  const palette=PAL;
  sides.forEach(sd=>RINGS.push(sd));PRINGS.forEach(sd=>RINGS.push(sd));
  const sm=new THREE.InstancedMesh(new THREE.BoxGeometry(1,0.25,1),sideMat,sides.length);sm.receiveShadow=true;
@@ -908,7 +908,8 @@ function buildTile(ti,tj){const n=TT+1,pos=new Float32Array(n*n*3),col=new Float
  const m=new THREE.Mesh(g,terrMat);m.receiveShadow=true;m.matrixAutoUpdate=false;return m}
 function terrStream(pos){const R=(scene.fog?scene.fog.far:400)+200,S=TT*IRES;const i0=Math.floor((pos.x-R-ISX0)/S),i1=Math.floor((pos.x+R-ISX0)/S),j0=Math.floor((pos.z-R-ISZ0)/S),j1=Math.floor((pos.z+R-ISZ0)/S);
  const keep=new Set();for(let i=Math.max(0,i0);i<=i1;i++)for(let j=Math.max(0,j0);j<=j1;j++){if(i*TT>=INX-1||j*TT>=INZ-1)continue;const k=i+'_'+j;keep.add(k);if(!terr.has(k)){const m=buildTile(i,j);terr.set(k,m);terrG.add(m)}}
- for(const [k,m] of terr)if(!keep.has(k)){terrG.remove(m);m.geometry.dispose();terr.delete(k)}}
+ for(const [k,m] of terr)if(!keep.has(k)){terrG.remove(m);m.geometry.dispose();terr.delete(k)}
+ (window._treeB||[]).forEach(b=>{const near=Math.hypot(b.cx-pos.x,b.cz-pos.z)<300;b.hi.visible=near;b.lo.visible=!near})}
 window.terrStream=terrStream;
 // --- sea ---
 {const wg=new THREE.PlaneGeometry(30000,30000);wg.rotateX(-Math.PI/2);const wn=ptex('water_n',0,false);wn.repeat.set(1/38,1/38);const wn2=wn;const wm=new THREE.MeshStandardMaterial({color:0x0e4f72,roughness:.06,metalness:0,transparent:true,opacity:.93,normalMap:wn,normalScale:new THREE.Vector2(.55,.55),envMapIntensity:1.3});window._waterN=wn;
@@ -961,9 +962,11 @@ async function placeElements(){
   const B=new Map(),put=(kind,it)=>{const k=kind+'|'+Math.floor(it[0]/320)+'_'+Math.floor(it[2]/320);if(!B.has(k))B.set(k,[]);B.get(k).push(it)};
   for(let z=ISZ0;z<ISZ0+INZ*IRES;z+=24)for(let x=ISX0;x<ISX0+INX*IRES;x+=24){const px=x+(irnd()-.5)*20,pz=z+(irnd()-.5)*20;const t=tAt(px,pz);if(t!==1&&t!==2&&t!==3)continue;const y=terrainY(px,pz);if(y<.4)continue;
    if(t===3&&irnd()<.85){const k=y>70||irnd()<.35?'pine':'tree';put(k,[px,y-.2,pz,irnd()*6.3,(k==='pine'?14:11)/(k==='pine'?pine.h:tree.h)*(.75+irnd()*.5)])}
-   else if(t===2&&irnd()<.06)put('tree',[px,y-.2,pz,irnd()*6.3,10/tree.h*(.7+irnd()*.5)]);
+   else if(t===2&&irnd()<.1)put('tree',[px,y-.2,pz,irnd()*6.3,10/tree.h*(.7+irnd()*.5)]);
    else if(t===1&&irnd()<.3)put('palm',[px,y-.1,pz,irnd()*6.3,11/palm.h*(.8+irnd()*.45)])}
-  for(const [k,list] of B){const kind=k.split('|')[0];instEl(kind==='pine'?pine:kind==='tree'?tree:palm,list)}
+  const [palmH,pineH,treeH]=await Promise.all(['palm','pine','tree'].map(loadEl));window._treeB=[];
+  for(const [k,list] of B){const kind=k.split('|')[0];const lo=kind==='pine'?pine:kind==='tree'?tree:palm,hi=kind==='pine'?pineH:kind==='tree'?treeH:palmH;
+   const gl=instEl(lo,list),gh=instEl(hi,list.map(it=>[it[0],it[1],it[2],it[3],it[4]*lo.h/hi.h]),{shadow:true});gh.visible=false;let cx=0,cz=0;list.forEach(it=>{cx+=it[0];cz+=it[2]});window._treeB.push({lo:gl,hi:gh,cx:cx/list.length,cz:cz/list.length})}
   // villas on hills facing downhill
   const vl=[[],[],[]];let nv=0;for(let tries=0;tries<20000&&nv<64;tries++){const x=ISX0+irnd()*INX*IRES,z=ISZ0+irnd()*INZ*IRES;const t=tAt(x,z);if(t!==2&&t!==3)continue;const y=terrainY(x,z);if(y<14||y>240)continue;
    const gx=terrainY(x+10,z)-terrainY(x-10,z),gz=terrainY(x,z+10)-terrainY(x,z-10);const sl=Math.hypot(gx,gz)/20;if(sl>.45)continue;if(nearRoad(x,z,22))continue;
