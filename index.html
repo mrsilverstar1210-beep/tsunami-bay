@@ -753,6 +753,7 @@ class Person{
   if(this.punchT>0){const p=Math.sin((1-this.punchT/.32)*Math.PI);const i=this.side;if(i){a1=-1.0-0.55*p;e1=-1.7+1.6*p}else{a0=-1.0-0.55*p;e0=-1.7+1.6*p}this.chest.rotation.y=(i?-.35:.35)*p}else this.chest.rotation.y*=.8;
   if(this.gun&&this.gun.visible&&this.down<=0){a1=-1.5;e1=-.05;if(this.isCop||this===hero){a0=-1.2;e0=-.6}}
   if(this.y>0.05){this.leg[0].rotation.x=-.6;this.leg[1].rotation.x=.3;this.knee[0].rotation.x=1.1;this.knee[1].rotation.x=.4}
+  if(this.reach){a0=-1.3;a1=-1.3;e0=-.45;e1=-.45}
   this.arm[0].rotation.x=a0;this.arm[1].rotation.x=a1;this.elb[0].rotation.x=e0;this.elb[1].rotation.x=e1;this.arm[0].rotation.z=-.08;this.arm[1].rotation.z=.08;
   const lying=this.down>0||this.dead;const tgt=lying?-Math.PI/2:0;this.body.rotation.x+=(tgt-this.body.rotation.x)*Math.min(1,dt*(lying?9:4));this.body.position.y=lying?Math.min(.18,this.body.position.y+dt):Math.max(0,this.body.position.y-dt*2);
   if(this.stag>0){this.stag-=dt;this.chest.rotation.x=-.3}else this.chest.rotation.x*=.8;
@@ -783,20 +784,72 @@ class Ped extends Person{
 }
 function heroPunchHit(){let best=null,bd=9;const f=hero.fwd();for(const p of peds){if(p.dead||!p.g.visible)continue;const d=p.pos.clone().sub(hero.pos);const L=d.length();if(L<1.45&&d.normalize().dot(f)>.35&&L<bd){bd=L;best=p}}
  if(best){best.hurt(26+Math.random()*10,hero.pos,4.5);shake=.25;if(best.dead)flash('NOKAUT!',700);onPedHurtByHero(best,false)}else sfx.whoosh()}
-function personsVsCars(){for(const p of people){if(!p.g.visible)continue;for(const v of allVehicles){if(onFoot===false&&p===hero)continue;const dx=p.pos.x-v.pos.x,dz=p.pos.z-v.pos.z;const R=v.r*.8+p.r;const d2=dx*dx+dz*dz;if(d2>R*R)continue;const d=Math.sqrt(d2)||1;const sp=Math.abs(v.v);
+function personsVsCars(){for(const p of people){if(!p.g.visible)continue;if(ENTRY&&(p===hero||p===ENTRY.driver))continue;for(const v of allVehicles){if(onFoot===false&&p===hero)continue;const dx=p.pos.x-v.pos.x,dz=p.pos.z-v.pos.z;const R=v.r*.8+p.r;const d2=dx*dx+dz*dz;if(d2>R*R)continue;const d=Math.sqrt(d2)||1;const sp=Math.abs(v.v);
   if(sp>4.5&&p.down<=0&&!p.dead){p.hurt(Math.min(120,sp*4.5),v.pos,sp*.8);p.vy=Math.min(7,sp*.3);v.v*=.85;if(v===player){shake=.3;sfx.crash(sp*.6);if(p!==hero)onPedHurtByHero(p,false)}}
   p.pos.x=v.pos.x+dx/d*R;p.pos.z=v.pos.z+dz/d*R}}
  for(let i=0;i<people.length;i++)for(let j=i+1;j<people.length;j++){const a=people[i],b=people[j];if(!a.g.visible||!b.g.visible||a.dead||b.dead)continue;const dx=b.pos.x-a.pos.x,dz=b.pos.z-a.pos.z,d=Math.hypot(dx,dz);if(d<.7&&d>1e-3){const k=(.7-d)/2;a.pos.x-=dx/d*k;a.pos.z-=dz/d*k;b.pos.x+=dx/d*k;b.pos.z+=dz/d*k}}}
 function focusObj(){return onFoot?hero:player}
+// ---------- CAR ENTRY / EXIT ANIMATION (walk to door, open, pull driver out, sit, close) ----------
+let ENTRY=null;
+function carBox(v){if(v._box)return v._box;const g=v.mesh;const p=g.position.clone(),r=g.rotation.y;g.position.set(0,0,0);g.rotation.set(0,0,0);g.updateMatrixWorld(true);
+ const b=new THREE.Box3();g.children.forEach(c=>{if(c.material!==shadowMat)b.expandByObject(c)});g.position.copy(p);g.rotation.y=r;g.updateMatrixWorld(true);
+ if(b.isEmpty())b.set(new THREE.Vector3(-.9,0,-2.2),new THREE.Vector3(.9,1.4,2.2));return v._box=b}
+function carPaint(v,b,y0,y1){const acc=[0,0,0];let n=0;const g=v.mesh;const p=g.position.clone(),r=g.rotation.y;g.position.set(0,0,0);g.rotation.set(0,0,0);g.updateMatrixWorld(true);const Q=new THREE.Vector3();
+ g.traverse(o=>{if(!o.isMesh||o.material===shadowMat||n>400)return;const geo=o.geometry,P=geo.attributes.position,C=geo.attributes.color,U=geo.attributes.uv;let img=null,cx=null;
+  if(!C&&U&&o.material.map&&o.material.map.image){img=o.material.map.image;try{const cv=document.createElement('canvas');cv.width=cv.height=64;cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(img,0,0,64,64)}catch(e){cx=null}}
+  const step=Math.max(1,Math.floor(P.count/4000));
+  for(let i=0;i<P.count&&n<400;i+=step){Q.fromBufferAttribute(P,i).applyMatrix4(o.matrixWorld);if(Q.x<b.max.x-(b.max.x-b.min.x)*.14||Q.y<y0||Q.y>y1)continue;
+   if(C){acc[0]+=C.getX(i);acc[1]+=C.getY(i);acc[2]+=C.getZ(i);n++}
+   else if(cx){try{const u=U.getX(i)%1,w=U.getY(i)%1;const d=cx.getImageData(Math.floor(((u+1)%1)*63),Math.floor((1-((w+1)%1))*63),1,1).data;const c=new THREE.Color(d[0]/255,d[1]/255,d[2]/255).convertSRGBToLinear();acc[0]+=c.r;acc[1]+=c.g;acc[2]+=c.b;n++}catch(e){cx=null}}}
+  if(!n&&o.material.color){acc[0]+=o.material.color.r;acc[1]+=o.material.color.g;acc[2]+=o.material.color.b;n++}});
+ g.position.copy(p);g.rotation.y=r;g.updateMatrixWorld(true);return n?new THREE.Color(acc[0]/n,acc[1]/n,acc[2]/n):new THREE.Color(0x888888)}
+function carDoor(v){if(v._door)return v._door;const b=carBox(v);const L=b.max.z-b.min.z,H=b.max.y-b.min.y;
+ const dl=L*.27,y0=b.min.y+H*.2,dh=H*.62,zc=b.min.z+L*.55,zf=zc+dl/2,x=b.max.x-.03;
+ const paint=carPaint(v,b,y0,y0+dh*.55);paint.multiplyScalar(1.3);paint.r=Math.min(1,paint.r);paint.g=Math.min(1,paint.g);paint.b=Math.min(1,paint.b);const pm2=new THREE.MeshStandardMaterial({color:paint,roughness:.35,metalness:.3});
+ const pivot=new THREE.Group();pivot.position.set(x,y0,zf);
+ const low=new THREE.Mesh(new THREE.BoxGeometry(.07,dh*.58,dl),pm2);low.position.set(.02,dh*.29,-dl/2);
+ const win=new THREE.Mesh(new THREE.BoxGeometry(.05,dh*.4,dl*.92),new THREE.MeshStandardMaterial({color:0x1d2630,roughness:.1,metalness:.6,transparent:true,opacity:.75}));win.position.set(.02,dh*.79,-dl/2-dl*.02);
+ const frame=new THREE.Mesh(new THREE.BoxGeometry(.06,.05,dl),pm2);frame.position.set(.02,dh*.99,-dl/2);
+ const handle=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.16),new THREE.MeshStandardMaterial({color:0x222222}));handle.position.set(.07,dh*.45,-dl*.82);
+ pivot.add(low,win,frame,handle);pivot.visible=false;
+ const gap=new THREE.Mesh(new THREE.BoxGeometry(.05,dh*.95,dl*.96),new THREE.MeshStandardMaterial({color:0x0b0b0d,roughness:1}));gap.position.set(x-.02,y0+dh*.48,zc);gap.visible=false;
+ const seat=new THREE.Mesh(new THREE.BoxGeometry(.4,.12,.5),new THREE.MeshStandardMaterial({color:0x2a2a2e}));seat.position.set(x-.35,y0+dh*.12,zc-.05);seat.visible=false;
+ v.mesh.add(pivot,gap,seat);
+ return v._door={pivot,gap,seat,set(a){const on=a>.02;pivot.visible=on;gap.visible=on;seat.visible=on;pivot.rotation.y=-a},
+  // world points: outside the door, the seat
+  out(v,k=.65){const f=v.fwd(),rt=new THREE.Vector3(f.z,0,-f.x);return v.pos.clone().addScaledVector(rt,b.max.x+k).addScaledVector(f,zc-dl*.15)},
+  inside(v){const f=v.fwd(),rt=new THREE.Vector3(f.z,0,-f.x);return v.pos.clone().addScaledVector(rt,b.max.x-.45).addScaledVector(f,zc-.05)}}}
+function startEntry(v){const t=traffic.find(t=>t.veh===v);if(v.isPolice)crime(1);if(t){if(copsNear(hero.pos,40))crime(1);traffic=traffic.filter(x=>x!==t)}
+ v.ai=false;v.v=0;parked=parked.filter(x=>x!==v);const d=carDoor(v);ENTRY={v,occ:!!t,phase:'walk',time:0,door:d,ang:0,driver:null};hero.reach=0}
+function finishEntry(v,occ){ENTRY=null;if(V.radio<0)V.radio=0;player=v;onFoot=false;hero.g.visible=false;hero.reach=0;v.v=0;camSnap=false;updTouch();
+ if(occ){const nt=new Traffic(pick(TRAFFIC_POOL));let k=0;while(nt.veh.pos.distanceTo(hero.pos)<60&&k++<20)nt.spawn();traffic.push(nt);allVehicles.push(nt.veh)}}
+function updateEntry(dt){const E=ENTRY;if(!E)return false;const v=E.v,d=E.door;E.time+=dt;v.v*=Math.max(0,1-dt*6);v.lat=0;
+ const face=a=>{let dh=a-hero.h;dh=Math.atan2(Math.sin(dh),Math.cos(dh));hero.h+=dh*Math.min(1,dt*12)};const f=v.fwd(),rt=new THREE.Vector3(f.z,0,-f.x);const sideH=Math.atan2(-rt.x,-rt.z);
+ if(E.phase==='walk'){const D=d.out(v);const to=D.clone().sub(hero.pos);to.y=0;const dist=to.length();
+  if(dist>.18&&E.time<3.2){hero.move(dt,to.x,to.z,Math.min(5.5,1.5+dist*3));hero.phys(dt)}else{hero.pos.copy(D);hero.vel.set(0,0,0);E.phase='open';E.time=0}}
+ else if(E.phase==='open'){face(sideH);hero.reach=1;E.ang=Math.min(1,E.time/.45)*1.15;d.set(E.ang);hero.move(dt,0,0,0);hero.phys(dt);
+  if(E.time>=.45){E.phase=E.occ?'pull':'in';E.time=0;if(E.occ){const dr=new Ped();peds.push(dr);E.driver=dr;dr.mode='idle';dr.place(d.inside(v),v.h+Math.PI/2);flash('Mashina olindi!',900)}}}
+ else if(E.phase==='pull'){face(sideH);hero.reach=1;const dr=E.driver;const k=Math.min(1,E.time/.7);const A=d.inside(v),B=d.out(v,1.9).addScaledVector(f,.5);
+  // hero steps back while dragging the driver out
+  const H0=d.out(v),H1=d.out(v,.9).addScaledVector(f,-.55);hero.pos.copy(H0.clone().lerp(H1,Math.min(1,E.time/.5)));hero.vel.set(0,0,0);
+  if(E.time<.7){dr.pos.copy(A.clone().lerp(B,k*k));dr.y=Math.sin(k*Math.PI)*.25;dr.h=sideH+Math.PI;dr.vel.set(0,0,0);dr.stag=.3;dr.sync&&dr.sync();dr.anim(dt)}
+  else if(!E.thrown){E.thrown=true;dr.down=1.4;dr.downDir=rt.clone();dr.vel.copy(rt).multiplyScalar(2.5);sfx.whoosh&&sfx.whoosh();dr.calm=10;dr.mode=Math.random()<.35?'fight':'flee'}
+  hero.anim(dt);hero.sync();
+  if(E.time>=1.05){E.phase='in';E.time=0}}
+ else if(E.phase==='in'){hero.reach=0;const S=d.inside(v),O=hero.pos.clone();const k=Math.min(1,E.time/.5);hero.pos.lerp(S,Math.min(1,dt*9));face(v.h);hero.y=0;hero.vel.set(0,0,0);hero.anim(dt);hero.sync();
+  if(E.time>.38)hero.g.visible=false;if(E.time>=.5){E.phase='close';E.time=0}}
+ else if(E.phase==='close'){E.ang=Math.max(0,1.15*(1-E.time/.35));d.set(E.ang);if(E.time>=.35){d.set(0);finishEntry(v,E.occ)}}
+ // exit sequence
+ else if(E.phase==='xopen'){E.ang=Math.min(1,E.time/.35)*1.15;d.set(E.ang);if(E.time>=.35){E.phase='xout';E.time=0;hero.place(d.inside(v),v.h);hero.g.visible=true}}
+ else if(E.phase==='xout'){const O=d.out(v,.9);const k=Math.min(1,E.time/.45);hero.pos.copy(d.inside(v).lerp(O,k));face(sideH+Math.PI);hero.speed=1.5;hero.anim(dt);hero.sync();if(E.time>=.45){E.phase='xclose';E.time=0}}
+ else if(E.phase==='xclose'){hero.reach=E.time<.2?1:0;face(sideH);E.ang=Math.max(0,1.15*(1-E.time/.3));d.set(E.ang);hero.move(dt,0,0,0);hero.phys(dt);if(E.time>=.3){d.set(0);ENTRY=null;hero.reach=0}}
+ return true}
+
 function nearestCar(){let best=null,bd=4.2;for(const v of allVehicles){if(v.wreck||v.fire)continue;const d=v.pos.distanceTo(hero.pos);if(d<bd){bd=d;best=v}}return best}
-function enterCar(){const v=nearestCar();if(!v||v.wreck)return;if(v.isPolice)crime(1);
- const t=traffic.find(t=>t.veh===v);
- if(t){if(copsNear(hero.pos,40))crime(1);traffic=traffic.filter(x=>x!==t);const dr=new Ped();peds.push(dr);const rt=new THREE.Vector3(v.fwd().z,0,-v.fwd().x);dr.place(v.pos.clone().addScaledVector(rt,2.1),v.h);dr.mode=Math.random()<.35?'fight':'flee';dr.calm=10;flash('Mashina olindi!',900);
-  const nt=new Traffic(pick(TRAFFIC_POOL));let k=0;while(nt.veh.pos.distanceTo(hero.pos)<60&&k++<20)nt.spawn();traffic.push(nt);allVehicles.push(nt.veh)}
- parked=parked.filter(x=>x!==v);if(V.radio<0)V.radio=0;v.ai=false;player=v;onFoot=false;hero.g.visible=false;v.v=Math.min(v.v,2);camSnap=true;updTouch()}
+function enterCar(){if(ENTRY)return;const v=nearestCar();if(!v||v.wreck)return;startEntry(v)}
 function exitCar(){if(!player)return;if(Math.abs(player.v)>9){flash('Avval sekinlang',800);return}const v=player;const f=v.fwd();const rt=new THREE.Vector3(f.z,0,-f.x);let p=v.pos.clone().addScaledVector(rt,2.2);
- hero.place(p,v.h);hero.g.visible=true;hero.down=0;onFoot=true;parked.push(v);player=null;camSnap=true;updTouch()}
-function toggleCar(){if(mode!=='city'||!hero)return;if(onFoot){if(!hero.dead&&hero.down<=0)enterCar()}else exitCar()}
+ hero.down=0;onFoot=true;parked.push(v);player=null;v.v=0;updTouch();const d=carDoor(v);hero.place(d.inside(v),v.h);hero.g.visible=false;ENTRY={v,phase:'xopen',time:0,door:d,ang:0}}
+function toggleCar(){if(mode!=='city'||!hero||ENTRY)return;if(onFoot){if(!hero.dead&&hero.down<=0)enterCar()}else exitCar()}
 
 
 // ---------- HERO 3D MODEL (Tripo, auto-skinned) ----------
@@ -932,7 +985,7 @@ screen.orientation&&screen.orientation.addEventListener&&screen.orientation.addE
 // ---------- GAME STATE ----------
 let player=null,mode='city',running=false,paused=false,camMode=0,shake=0;
 let racers=[],raceT=0,countdown=0,raceOver=false;
-function clearVehicles(){if(typeof V!=='undefined'){V.pickups.forEach(p=>scene.remove(p.m));V.pickups=[];markers.forEach(m=>scene.remove(m.g));markers.length=0;V.fx.forEach(f=>scene.remove(f.o));V.fx=[];V.tracers.forEach(t=>scene.remove(t.o));V.tracers=[];V.mission=null;V.wanted=0;V.copCars=[];V.cops=[];const vm=$('vmis');if(vm)vm.style.opacity=0}allVehicles.forEach(v=>scene.remove(v.mesh));allVehicles=[];traffic=[];racers=[];player=null;people.slice().forEach(p=>p.remove());people=[];peds=[];hero=null;onFoot=false;parked=[]}
+function clearVehicles(){ENTRY=null;if(typeof V!=='undefined'){V.pickups.forEach(p=>scene.remove(p.m));V.pickups=[];markers.forEach(m=>scene.remove(m.g));markers.length=0;V.fx.forEach(f=>scene.remove(f.o));V.fx=[];V.tracers.forEach(t=>scene.remove(t.o));V.tracers=[];V.mission=null;V.wanted=0;V.copCars=[];V.cops=[];const vm=$('vmis');if(vm)vm.style.opacity=0}allVehicles.forEach(v=>scene.remove(v.mesh));allVehicles=[];traffic=[];racers=[];player=null;people.slice().forEach(p=>p.remove());people=[];peds=[];hero=null;onFoot=false;parked=[]}
 function startCity(){clearVehicles();mode='city';trackGroup.visible=false;
  player=new Vehicle(S.car);player.place(new THREE.Vector3(roadCoord(13)-LANE,0,roadCoord(14)+20),0);if(window.cityStream)cityStream(player.pos,true);allVehicles.push(player);
  const tids=TRAFFIC_POOL.slice().sort(()=>Math.random()-.5);
@@ -1284,8 +1337,8 @@ function loop(now){requestAnimationFrame(loop);
    updateRaceProgress(player);
    const st=standings();$('rpos').textContent=(st.indexOf(player)+1)+'/'+st.length;$('rlap').textContent='Aylana '+Math.min(S.laps,player.lap+1)+'/'+S.laps;$('rtime').textContent=fmt(raceT)}
   else{traffic.forEach(t=>t.apply(dt));recycleCrowd(dt);parked.forEach(v=>{if(Math.abs(v.v)>.05||Math.abs(v.lat)>.05)v.update(dt,IDLE)});peds.forEach(p=>p.update(dt));
-   if(onFoot){heroControl(dt);hero.phys(dt);
-    const nc=nearestCar();const ht=$('hint');ht.style.opacity=nc?1:0;if(nc)ht.textContent=(isTouch?'MIN':'E')+' — '+(traffic.some(t=>t.veh===nc)?'mashinani tortib olish':'mashinaga o\'tirish')+' ('+nc.cfg.name+')'}
+   if(onFoot){if(!updateEntry(dt)){heroControl(dt);hero.phys(dt)}
+    const nc=ENTRY?null:nearestCar();const ht=$('hint');ht.style.opacity=nc?1:0;if(nc)ht.textContent=(isTouch?'MIN':'E')+' — '+(traffic.some(t=>t.veh===nc)?'mashinani tortib olish':'mashinaga o\'tirish')+' ('+nc.cfg.name+')'}
    else $('hint').style.opacity=0;
    $('hpi').style.width=(hero?hero.hp:100)+'%';viceUpdate(dt)}
   if(player)player.update(dt,inp);collideCars(allVehicles);if(mode==='city')personsVsCars();
