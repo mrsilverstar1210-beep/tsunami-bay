@@ -599,15 +599,12 @@ const checkpoints=[];
 try{window.createImageBitmap=undefined}catch(e){}
 const loader=new GLTFLoader();
 const proto={};window._proto=proto;
-async function loadAll(){
- const ids=[...new Set(CARS.map(c=>c.id).concat(['car04']))];
- let done=0;
- await Promise.all(ids.map(async id=>{
-  try{const txt=await (await fetch('models/'+id+'.txt')).text();const bin=Uint8Array.from(atob(txt.trim()),c=>c.charCodeAt(0));const g=await new Promise((ok,err)=>loader.parse(bin.buffer,'',ok,err));
+async function buildProto(id,txt){const bin=Uint8Array.from(atob(txt.trim()),c=>c.charCodeAt(0));
+const g=await new Promise((ok,err)=>loader.parse(bin.buffer,'',ok,err));
    const root=g.scene;
    root.traverse(o=>{if(o.isMesh){if(!o.geometry.attributes.normal)o.geometry.computeVertexNormals();o.castShadow=true;o.receiveShadow=false;const m=o.material;
      if(o.geometry.attributes.color&&!(m.map)){o.material=new THREE.MeshPhysicalMaterial({vertexColors:true,roughness:.32,metalness:.3,clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.5})}
-     else if(m){o.material=new THREE.MeshPhysicalMaterial({map:m.map,normalMap:m.normalMap,color:m.color,roughness:Math.min(m.roughness??.5,.42),metalness:Math.max(m.metalness??0,.28),clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.5,transparent:m.transparent,opacity:m.opacity})}
+     else if(m){o.material=new THREE.MeshPhysicalMaterial({map:m.map,normalMap:m.normalMap,color:m.color,roughnessMap:m.roughnessMap,metalnessMap:m.metalnessMap,roughness:m.roughnessMap?1:Math.min(m.roughness??.5,.42),metalness:m.metalnessMap?1:Math.max(m.metalness??0,.28),clearcoat:1,clearcoatRoughness:.05,envMapIntensity:1.5,transparent:m.transparent,opacity:m.opacity})}
    }});
    const box=new THREE.Box3().setFromObject(root);const size=box.getSize(new THREE.Vector3());const c=box.getCenter(new THREE.Vector3());
    const wrap=new THREE.Group();root.position.set(-c.x,-box.min.y,-c.z);
@@ -615,7 +612,18 @@ async function loadAll(){
    if(size.x>size.z){inner.rotation.y=Math.PI/2}
    const fix=MODEL_FIX[id];if(fix)inner.rotation.y+=fix;
    wrap.add(inner);
-   proto[id]={obj:wrap,len:Math.max(size.x,size.z),wid:Math.min(size.x,size.z),h:size.y};
+   return {obj:wrap,len:Math.max(size.x,size.z),wid:Math.min(size.x,size.z),h:size.y};}
+// high-detail car models, loaded after start (garage + player cars first) and swapped into live cars
+const HQ_IDS=['car06','car07','car17','car18','car19','car10','car16','car05','car12','car08','car13','car01','car11','car03','car02','damas','damas2','matiz','lacetti','car20','sedan','car04'];const hqDone=new Set(),hqBusy=new Set();
+async function loadHQ(id){if(hqDone.has(id)||hqBusy.has(id)||!HQ_IDS.includes(id))return;hqBusy.add(id);try{const res=await fetch('models/hq/'+id+'.txt');if(!res.ok)throw 0;const p=await buildProto(id,await res.text());proto[id]=p;hqDone.add(id);
+  for(const v of allVehicles){if(v.id!==id||!v.mesh)continue;const c=v.cfg;const old=v.mesh.children[0];const m=p.obj.clone(true);m.scale.setScalar(c.len/p.len);v.mesh.remove(old);v.mesh.add(m);v.mesh.children.unshift(v.mesh.children.pop());if(v._door)v._door=null}
+  if(typeof gCar!=='undefined'&&gCar&&CARS[gIdx]&&CARS[gIdx].id===id&&garageGroup.visible)showGarageCar(true)}catch(e){}hqBusy.delete(id)}
+async function loadAllHQ(){const first=[S.car,...allVehicles.filter(v=>!v.ai).map(v=>v.id)];for(const id of [...new Set([...first,...HQ_IDS])])await loadHQ(id)}
+async function loadAll(){
+ const ids=[...new Set(CARS.map(c=>c.id).concat(['car04']))];
+ let done=0;
+ await Promise.all(ids.map(async id=>{
+  try{const txt=await (await fetch('models/'+id+'.txt')).text();proto[id]=await buildProto(id,txt);
   }catch(e){console.warn('model fail',id,e)}
   done++;$('bar').firstChild.style.width=(done/ids.length*100)+'%';$('ltxt').textContent=done+' / '+ids.length+' model';
  }));
@@ -1253,7 +1261,7 @@ let gIdx=Math.max(0,CARS.findIndex(c=>c.id===S.car)),gCar=null;
 const garageGroup=new THREE.Group();scene.add(garageGroup);garageGroup.visible=false;
 {const plat=new THREE.Mesh(new THREE.CylinderGeometry(5,5.3,.4,48),new THREE.MeshStandardMaterial({color:0x22262e,metalness:.6,roughness:.3}));plat.position.y=.2;plat.receiveShadow=true;garageGroup.add(plat);
  const ring=new THREE.Mesh(new THREE.TorusGeometry(5.15,.06,8,64),new THREE.MeshBasicMaterial({color:0x3ad1ff}));ring.rotation.x=Math.PI/2;ring.position.y=.41;garageGroup.add(ring);garageGroup.position.copy(gp(5,3))}
-function showGarageCar(on){garageGroup.visible=on;if(gCar){garageGroup.remove(gCar);gCar=null}if(!on)return;const c=CARS[gIdx];gCar=makeCar(c.id);gCar.position.y=.4;garageGroup.add(gCar);
+function showGarageCar(on){garageGroup.visible=on;if(gCar){garageGroup.remove(gCar);gCar=null}if(!on)return;const c=CARS[gIdx];loadHQ(c.id);gCar=makeCar(c.id);gCar.position.y=.4;garageGroup.add(gCar);
  $('gName').textContent=c.name;$('gCls').textContent=c.cls;$('gS1').style.width=(c.spd/92*100)+'%';$('gS2').style.width=(c.acc/20*100)+'%';$('gS3').style.width=(c.grip/1.35*100)+'%';$('gPick').textContent=c.id===S.car?'✓ Tanlangan':'Tanlash'}
 function openGarage(){['menu'].forEach(s=>$(s).classList.add('hide'));$('garage').classList.remove('hide');showGarageCar(true);trackGroup.visible=false}
 $('gPrev').onclick=()=>{gIdx=(gIdx-1+CARS.length)%CARS.length;showGarageCar(true)};$('gNext').onclick=()=>{gIdx=(gIdx+1)%CARS.length;showGarageCar(true)};
@@ -1541,7 +1549,7 @@ let composer=null;function makeComposer(){try{composer=new EffectComposer(render
 makeComposer();
 // ---------- BOOT ----------
 applyQuality();resize();requestAnimationFrame(loop);
-await loadAll();await loadHeroModel();
+await loadAll();await loadHeroModel();setTimeout(()=>loadAllHQ(),1500);
 // tire stacks along track corners
 if(proto.car04){TRACK.forEach((p,k)=>{for(let s=0;s<2;s++){const t=proto.car04.obj.clone(true);const sc=1.3/proto.car04.h*0.5;t.scale.setScalar(sc);t.rotation.z=Math.PI/2;t.position.set(p.x+(s?1:-1)*(ROAD/2+1.2),0.35,p.z+(s?-1:1)*(ROAD/2+1.2));trackGroup.add(t)}})}
 $('loading').classList.add('hide');showMenu();
