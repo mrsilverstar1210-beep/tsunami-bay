@@ -50,6 +50,13 @@ h1{margin:0;font-size:clamp(34px,7vw,72px);letter-spacing:2px;font-weight:900;ba
 #touch{position:fixed;inset:0;z-index:11;pointer-events:none}
 .tb{position:absolute;pointer-events:auto;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#fff}
 .tb.on{background:rgba(80,140,255,.45)}
+.tb::after{content:'';position:absolute;inset:-18px;border-radius:50%}
+#jzone{position:absolute;left:0;top:0;width:42%;height:100%;pointer-events:auto;z-index:0}
+#jbase{position:absolute;border-radius:50%;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.28);pointer-events:none;transform:translate(-50%,-50%);transition:opacity .15s}
+#jknob{position:absolute;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.6);pointer-events:none;transform:translate(-50%,-50%)}
+#touch.edit .tb{outline:3px dashed #ffd84a;outline-offset:4px;background:rgba(255,216,74,.18)}#touch.edit .tb.sel{background:rgba(255,216,74,.45)}
+#tedit{position:absolute;left:50%;top:12px;transform:translateX(-50%);display:none;gap:8px;z-index:30;pointer-events:auto}#touch.edit #tedit{display:flex}
+#tedit button{font:700 15px system-ui;padding:12px 16px;border-radius:12px;border:0;background:#263046;color:#fff}#tedit button.ok{background:#ffd84a;color:#111}
 #hp{position:absolute;left:16px;top:14px;width:170px;height:10px;border-radius:6px;background:rgba(0,0,0,.45);overflow:hidden;border:1px solid rgba(255,255,255,.2)}#hp i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff3b5c,#ffb03b)}#hint{position:absolute;left:50%;bottom:26%;transform:translateX(-50%);padding:8px 14px;border-radius:10px;background:rgba(0,0,0,.55);font-weight:800;font-size:14px;opacity:0;transition:opacity .2s;white-space:nowrap}
 #fps{position:absolute;left:16px;bottom:4px;font-size:11px;opacity:.5}
 #results{gap:8px}
@@ -105,9 +112,11 @@ body.touch #speed{right:auto;left:50%;transform:translateX(-50%);bottom:auto;top
 </div>
 
 <div id="touch" class="hide">
+ <div id="jzone"></div><div id="jbase" style="opacity:.35"></div><div id="jknob" style="opacity:.35"></div>
+ <div id="tedit"><button id="teBig">＋ Kattalashtirish</button><button id="teSmall">－ Kichraytirish</button><button id="teReset">Asl holi</button><button class="ok" id="teDone">Tayyor</button></div>
  <div id="tcar">
-  <div class="tb" id="tL" style="left:12px;bottom:22px;width:78px;height:78px">◀</div>
-  <div class="tb" id="tR" style="left:98px;bottom:22px;width:78px;height:78px">▶</div>
+  <div class="tb hide" id="tL" style="left:12px;bottom:22px;width:78px;height:78px">◀</div>
+  <div class="tb hide" id="tR" style="left:98px;bottom:22px;width:78px;height:78px">▶</div>
   <div class="tb" id="tG" style="right:12px;bottom:22px;width:88px;height:88px;font-size:15px">GAZ</div>
   <div class="tb" id="tB" style="right:108px;bottom:22px;width:68px;height:68px;font-size:12px">TORMOZ</div>
   <div class="tb" id="tN" style="right:12px;bottom:120px;width:62px;height:62px;font-size:12px">NITRO</div>
@@ -115,13 +124,13 @@ body.touch #speed{right:auto;left:50%;transform:translateX(-50%);bottom:auto;top
   <div class="tb" id="tQ" style="right:14px;bottom:192px;width:56px;height:56px;font-size:10px">RADIO</div>
  </div>
  <div id="tfoot" class="hide">
-  <div id="joy" style="position:absolute;left:14px;bottom:20px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.22);pointer-events:auto"><div id="knob" style="position:absolute;left:50px;top:50px;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.35)"></div></div>
+
   <div class="tb" id="tP" style="right:12px;bottom:22px;width:90px;height:90px;font-size:14px">HUJUM</div>
   <div class="tb" id="tJ" style="right:110px;bottom:22px;width:66px;height:66px;font-size:11px">SAKRASH</div>
   <div class="tb" id="tS" style="right:14px;bottom:122px;width:62px;height:62px;font-size:11px">YUGUR</div>
   <div class="tb" id="tW" style="right:86px;bottom:104px;width:58px;height:58px;font-size:10px">QUROL</div>
  </div>
- <div class="tb" id="tE" style="left:14px;bottom:186px;width:66px;height:66px;font-size:12px;background:rgba(40,200,120,.3)">MIN</div>
+ <div class="tb" id="tE" style="right:190px;bottom:22px;width:70px;height:70px;font-size:13px;background:rgba(40,200,120,.3)">MIN</div>
 </div>
 
 
@@ -162,6 +171,7 @@ body.touch #speed{right:auto;left:50%;transform:translateX(-50%);bottom:auto;top
   <h1 style="font-size:46px">Pauza</h1>
   <button class="btn" id="pResume">Davom etish</button>
   <button class="btn alt" id="pRestart">Qaytadan</button>
+  <button class="btn alt" id="pLayout">Tugmalarni joylash</button>
   <button class="btn alt" id="pMenu">Bosh menyu</button>
 </div>
 
@@ -1122,14 +1132,37 @@ const touch={L:0,R:0,G:0,B:0,H:0,N:0,P:0,J:0,S:0,E:0,W:0,Q:0};
 ['L','R','G','B','H','N','P','J','S','E','W','Q'].forEach(k=>{const el=$('t'+k);const on=e=>{e.preventDefault();touch[k]=1;el.classList.add('on');sfx.unlock();if(k==='E')toggleCar();if(k==='P')heroAttack();if(k==='W')cycleWeapon();if(k==='Q')nextRadio();if(k==='J'&&onFoot)hero.jump()},off=e=>{e.preventDefault();touch[k]=0;el.classList.remove('on')};el.addEventListener('touchstart',on,{passive:false});el.addEventListener('touchend',off,{passive:false});el.addEventListener('touchcancel',off,{passive:false});el.addEventListener('mousedown',on);el.addEventListener('mouseup',off);el.addEventListener('mouseleave',off)});
 // tilt steering optional: no
 
-const joy={x:0,y:0,id:null};{const J=$('joy'),K=$('knob');const upd=(cx,cy)=>{const r=J.getBoundingClientRect();let sx=cx-(r.left+r.width/2),sy=cy-(r.top+r.height/2);let dx=sx,dy=sy;if(isRot()){dx=sy;dy=-sx}const L=Math.hypot(dx,dy),M=55;if(L>M){dx*=M/L;dy*=M/L}joy.x=dx/M;joy.y=dy/M;K.style.left=(50+dx)+'px';K.style.top=(50+dy)+'px'};
- J.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];joy.id=t.identifier;upd(t.clientX,t.clientY);sfx.unlock()},{passive:false});
- J.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===joy.id)upd(t.clientX,t.clientY)},{passive:false});
- const end=e=>{for(const t of e.changedTouches)if(t.identifier===joy.id){joy.id=null;joy.x=joy.y=0;K.style.left='50px';K.style.top='50px'}};J.addEventListener('touchend',end);J.addEventListener('touchcancel',end)}
+const joy={x:0,y:0,id:null};
+// ---- floating joystick (appears where the left thumb lands) + scalable, movable buttons ----
+const TLY={k:1,R:70,home:[0,0],sel:null,edit:false,lay:{}};try{TLY.lay=JSON.parse(localStorage.getItem('tlayout')||'{}')}catch(e){}
+const lsz=()=>isRot()?[innerHeight,innerWidth]:[innerWidth,innerHeight];const logi=(x,y)=>isRot()?[y,innerWidth-x]:[x,y];
+function layoutTouch(){const [W,H]=lsz();TLY.k=THREE.MathUtils.clamp(Math.min(W,H)/420,1,1.9);TLY.R=Math.round(62*TLY.k);
+ document.querySelectorAll('#touch .tb').forEach(el=>{if(!el.dataset.def)el.dataset.def=el.getAttribute('style');el.setAttribute('style',el.dataset.def);const cs=el.style;const w=parseFloat(cs.width),fs=parseFloat(cs.fontSize)||22;
+  const L=TLY.lay[el.id];const s=(L&&L.s||1)*TLY.k;const nw=Math.round(w*s);cs.width=cs.height=nw+'px';cs.fontSize=Math.round(fs*Math.min(s,1.6))+'px';
+  if(L){cs.left=(L.x*W-nw/2)+'px';cs.top=(L.y*H-nw/2)+'px';cs.right=cs.bottom='auto'}else{for(const p of ['left','right','bottom']){if(cs[p]&&cs[p]!=='auto')cs[p]=Math.round(parseFloat(cs[p])*TLY.k)+'px'}}});
+ TLY.home=[TLY.R*1.5+20,H-TLY.R*1.5-20];const B=$('jbase'),K=$('jknob');B.style.width=B.style.height=TLY.R*2+'px';K.style.width=K.style.height=Math.round(TLY.R*.8)+'px';if(joy.id===null)jShow(...TLY.home,.35)}
+function jShow(x,y,op){const B=$('jbase'),K=$('jknob');B.style.left=K.style.left=x+'px';B.style.top=K.style.top=y+'px';B.style.opacity=K.style.opacity=op;TLY.c=[x,y]}
+{const Z=$('jzone'),K=$('jknob');const upd=(cx,cy)=>{const [x,y]=logi(cx,cy);let dx=x-TLY.c[0],dy=y-TLY.c[1];const L=Math.hypot(dx,dy),M=TLY.R;if(L>M){// drag the base along so the stick never "sticks" at the rim
+   TLY.c[0]+=dx*(1-M/L)*.6;TLY.c[1]+=dy*(1-M/L)*.6;jShow(TLY.c[0],TLY.c[1],1);dx=x-TLY.c[0];dy=y-TLY.c[1];const L2=Math.hypot(dx,dy);if(L2>M){dx*=M/L2;dy*=M/L2}}
+  joy.x=dx/M;joy.y=dy/M;K.style.left=(TLY.c[0]+dx)+'px';K.style.top=(TLY.c[1]+dy)+'px'};
+ Z.addEventListener('touchstart',e=>{e.preventDefault();if(TLY.edit||joy.id!==null)return;const t=e.changedTouches[0];joy.id=t.identifier;const [x,y]=logi(t.clientX,t.clientY);jShow(x,y,1);upd(t.clientX,t.clientY);sfx.unlock()},{passive:false});
+ Z.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier===joy.id)upd(t.clientX,t.clientY)},{passive:false});
+ const end=e=>{for(const t of e.changedTouches)if(t.identifier===joy.id){joy.id=null;joy.x=joy.y=0;jShow(...TLY.home,.35)}};Z.addEventListener('touchend',end);Z.addEventListener('touchcancel',end)}
+// layout editor: drag buttons anywhere, resize, saved on the device
+{const T=$('touch');let drag=null;
+ const pick=el=>{document.querySelectorAll('#touch .tb.sel').forEach(x=>x.classList.remove('sel'));TLY.sel=el;el&&el.classList.add('sel')};
+ T.addEventListener('touchstart',e=>{if(!TLY.edit)return;const el=e.target.closest&&e.target.closest('.tb');if(!el)return;e.preventDefault();e.stopPropagation();pick(el);const t=e.changedTouches[0];drag={el,id:t.identifier}},{capture:true,passive:false});
+ T.addEventListener('touchmove',e=>{if(!TLY.edit||!drag)return;e.preventDefault();for(const t of e.changedTouches)if(t.identifier===drag.id){const [x,y]=logi(t.clientX,t.clientY);const [W,H]=lsz();const L=TLY.lay[drag.el.id]||(TLY.lay[drag.el.id]={s:1});L.x=x/W;L.y=y/H;layoutTouch();drag.el.classList.add('sel')}},{capture:true,passive:false});
+ T.addEventListener('touchend',e=>{if(TLY.edit)drag=null},{capture:true});
+ const sz=f=>{if(!TLY.sel)return;const id=TLY.sel.id;const r=TLY.sel.getBoundingClientRect();const [x,y]=logi(r.left+r.width/2,r.top+r.height/2);const [W,H]=lsz();const L=TLY.lay[id]||(TLY.lay[id]={s:1,x:x/W,y:y/H});L.s=THREE.MathUtils.clamp((L.s||1)*f,.6,2.2);layoutTouch();$(id).classList.add('sel')};
+ $('teBig').onclick=()=>sz(1.15);$('teSmall').onclick=()=>sz(1/1.15);$('teReset').onclick=()=>{TLY.lay={};layoutTouch()};
+ $('teDone').onclick=()=>{TLY.edit=false;T.classList.remove('edit');pick(null);try{localStorage.setItem('tlayout',JSON.stringify(TLY.lay))}catch(e){}paused=false};
+ window._editTouch=()=>{TLY.edit=true;T.classList.add('edit');$('pause').classList.add('hide');T.classList.remove('hide');paused=true}}
+addEventListener('resize',()=>setTimeout(layoutTouch,50));setTimeout(layoutTouch,0);
 canvas.addEventListener('mousedown',e=>{if(e.button===0&&running&&!paused){mouseDown=true;heroAttack()}});addEventListener('mouseup',()=>mouseDown=false);canvas.addEventListener('wheel',e=>{if(onFoot&&running)cycleWeapon()});
 // ---- camera look: swipe on the right side of the screen (touch) or drag with right mouse button ----
 const look={yaw:0,pitch:.18,off:0,id:null,lx:0,ly:0,active:false,idle:9,init:false};
-{const isUI=t=>t&&t.closest&&t.closest('button,.tbtn,#joy,#knob,.scr,#hudTop,a,input,select');
+{const isUI=t=>t&&t.closest&&t.closest('button,.tbtn,.tb,#jzone,#tedit,.scr,#hudTop,a,input,select');
  const logical=(x,y)=>isRot()?[y,innerWidth-x]:[x,y];const LW=()=>isRot()?innerHeight:innerWidth;
  const drag=(dx,dy)=>{const s=4.2/LW();look.yaw-=dx*s;look.off-=dx*s;look.pitch=THREE.MathUtils.clamp(look.pitch+dy*s*.8,-.25,1.05);look.idle=0};
  addEventListener('touchstart',e=>{if(!running||paused)return;for(const t of e.changedTouches){if(look.id!==null)break;if(isUI(t.target))continue;const [x,y]=logical(t.clientX,t.clientY);if(x>LW()*.38){look.id=t.identifier;look.lx=x;look.ly=y;look.active=true}}},{passive:true});
@@ -1148,7 +1181,7 @@ function heroControl(dt){const c=readFoot();if(hero.dead||hero.down>0){hero.move
   const yaw=Math.atan2(camLook.x-camPos.x,camLook.z-camPos.z);const fx=Math.sin(yaw),fz=Math.cos(yaw);const rx=fz,rz=-fx;const mx=-c.jy*fx - c.jx*rx, mz=-c.jy*fz - c.jx*rz;const mag=Math.min(1,Math.hypot(c.jx,c.jy));hero.move(dt,mx,mz,spd*(mag>.85&&!c.run?1.7:1)*mag)}
  else{hero.h+=c.t*dt*2.8;const f=hero.fwd();if(c.f!==0)hero.move(dt,f.x*c.f,f.z*c.f,c.f<0?2:spd);else hero.move(dt,0,0,0);if(c.f!==0||c.t!==0){} }
  hero.guard=hero.punchT>0?1:0}
-function readInput(){let st=0;if(keys.ArrowLeft||keys.KeyA||touch.L)st+=1;if(keys.ArrowRight||keys.KeyD||touch.R)st-=1;
+function readInput(){let st=0;if(keys.ArrowLeft||keys.KeyA||touch.L)st+=1;if(keys.ArrowRight||keys.KeyD||touch.R)st-=1;if(joy.id!==null)st-=THREE.MathUtils.clamp(joy.x*1.25,-1,1);
  // gamepad
  const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;let thr=(keys.ArrowUp||keys.KeyW||touch.G)?1:0,brk=(keys.ArrowDown||keys.KeyS||touch.B)?1:0,hand=!!(keys.Space||touch.H),nit=!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyN||touch.N);
  if(gp){const ax=gp.axes[0]||0;if(Math.abs(ax)>.15)st=-ax;thr=Math.max(thr,gp.buttons[7]?.value||0);brk=Math.max(brk,gp.buttons[6]?.value||0);hand=hand||gp.buttons[0]?.pressed;nit=nit||gp.buttons[1]?.pressed}
@@ -1324,7 +1357,7 @@ $('mSet').onclick=()=>{$('menu').classList.add('hide');$('settings').classList.r
 $('sBack').onclick=()=>{$('settings').classList.add('hide');showMenu()};
 function syncChips(){[['sQ','q'],['sF','fps'],['sT','traffic'],['sS','snd'],['sL','laps']].forEach(([id,k])=>{[...$(id).children].forEach(ch=>{ch.classList.toggle('on',+ch.dataset.v===S[k]);ch.onclick=()=>{S[k]=+ch.dataset.v;store.set(k,S[k]);syncChips();if(k==='q')applyQuality();if(k==='snd'&&!S.snd&&sfx.gain)sfx.gain.gain.value=0}})})}
 $('bPause').onclick=togglePause;$('bCam').onclick=cycleCam;$('bReset').onclick=resetCar;
-$('pResume').onclick=togglePause;$('pRestart').onclick=()=>{mode==='race'?startRace():startCity()};$('pMenu').onclick=showMenu;
+$('pResume').onclick=togglePause;$('pLayout').onclick=()=>window._editTouch&&window._editTouch();$('pRestart').onclick=()=>{mode==='race'?startRace():startCity()};$('pMenu').onclick=showMenu;
 $('resAgain').onclick=startRace;$('resMenu').onclick=showMenu;
 
 // ================= VICE SYSTEMS (inserted into index.html) =================
