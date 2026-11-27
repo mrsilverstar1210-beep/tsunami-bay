@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="uz"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Tsunami Kids</title>
+<style>
+@font-face{font-family:N;src:local("Nunito"),local("sans-serif")}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{height:100%;overflow:hidden}
+body{font-family:"Nunito","Roboto",sans-serif;background:linear-gradient(180deg,#bfe9ff 0%,#fff6e0 100%);color:#334;font-weight:700}
+.scr{position:absolute;inset:0;display:none;flex-direction:column;overflow:hidden}
+.scr.on{display:flex}
+.top{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 8px;flex:none}
+.logo{font-weight:900;font-size:26px;color:#1b5fd9;letter-spacing:-.3px}.logo span{color:#ff8a00}
+.ib{width:46px;height:46px;border-radius:16px;background:#fff;display:grid;place-items:center;font-size:22px;box-shadow:0 3px 10px #0001;border:0}
+.chips{display:flex;gap:8px;padding:6px 16px 10px;overflow-x:auto;flex:none;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{padding:10px 16px;border-radius:22px;background:#fff;font-weight:800;font-size:15px;color:#456;white-space:nowrap;box-shadow:0 2px 6px #0001;border:0}
+.chip.on{background:#ff8a00;color:#fff}
+.scroll{flex:1;overflow-y:auto;padding:6px 16px 100px;-webkit-overflow-scrolling:touch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.card{border-radius:22px;background:#fff;overflow:hidden;box-shadow:0 4px 14px #0001;border:0;text-align:left;transition:transform .15s}
+.card:active{transform:scale(.96)}
+.th{aspect-ratio:16/10;background:#dde8f3 center/cover no-repeat;position:relative}
+.ct{padding:9px 11px 11px;font-weight:800;font-size:14px;line-height:1.25}.ct span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;height:2.5em}
+.empty{text-align:center;padding:60px 20px;color:#678;font-size:17px;line-height:1.5}
+.empty b{display:block;font-size:56px;margin-bottom:10px}
+.timer{position:absolute;left:16px;right:16px;bottom:16px;background:#fff;border-radius:22px;padding:13px 18px;display:flex;align-items:center;gap:12px;font-weight:800;color:#456;box-shadow:0 4px 16px #0002}
+.bar{flex:1;height:11px;border-radius:6px;background:#e3ecf5;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#3ccf6e,#ffc400);transition:width .5s}
+.bar i.low{background:linear-gradient(90deg,#ff8a00,#ff4d4d)}
+/* player */
+#player{background:#0d1a2b}
+.pwrap{position:relative;width:100%;aspect-ratio:16/9;background:#000;flex:none;max-height:62vh}
+.pwrap iframe,#yt{position:absolute;inset:0;width:100%;height:100%;border:0}
+.shield{position:absolute;inset:0;z-index:5}
+.pt{color:#fff;font-weight:900;font-size:18px;padding:14px 18px 4px;flex:none}
+.prog{height:8px;background:#ffffff22;margin:6px 18px;border-radius:5px;overflow:hidden;flex:none}.prog i{display:block;height:100%;width:0;background:#ff8a00}
+.ctrl{display:flex;justify-content:center;gap:22px;padding:14px;flex:none}
+.btn{width:72px;height:72px;border-radius:24px;background:#fff;display:grid;place-items:center;font-size:30px;box-shadow:0 4px 12px #0003;border:0;color:#334}
+.btn.big{background:#ff8a00;color:#fff;width:88px;height:88px;font-size:36px}
+.back{position:absolute;top:12px;left:12px;z-index:9;width:52px;height:52px;border-radius:18px;background:#0007;color:#fff;font-size:26px;border:0}
+.nx{flex:1;overflow-y:auto;padding:0 14px 20px}
+.nx h3{color:#cfe0f5;font-size:15px;margin:6px 4px 10px}
+.row{display:flex;gap:12px;align-items:center;margin-bottom:10px;background:#ffffff12;border-radius:18px;padding:8px;border:0;width:100%;text-align:left;color:#fff}
+.row .th{width:120px;flex:none;border-radius:12px}.row b{font-size:14px;line-height:1.3}
+.landscape #player{flex-direction:row}
+@media (orientation:landscape){
+ #player{flex-direction:row}
+ #player .left{flex:1.6;display:flex;flex-direction:column;justify-content:center}
+ #player .pwrap{max-height:none}
+ #player .nx{flex:1;padding-top:14px}
+}
+#player .left{display:flex;flex-direction:column}
+/* overlays */
+.ov{position:absolute;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:linear-gradient(180deg,#bfe9ff,#fff6e0)}
+.ov.on{display:flex}
+.ov .big{font-size:84px}.ov h2{font-size:28px;font-weight:900;margin:12px 0 8px;color:#1b5fd9}.ov p{font-size:17px;color:#567;line-height:1.5;max-width:420px}
+.cd{font-size:44px;font-weight:900;color:#ff8a00;margin:16px 0}
+.link{margin-top:26px;color:#89a;font-size:14px;background:none;border:0;text-decoration:underline}
+/* pin */
+.pin{align-items:center;justify-content:center}
+.q{background:#fff;border-radius:18px;padding:14px 22px;font-weight:900;color:#334;font-size:20px;margin-top:10px}
+.dots{display:flex;gap:16px;margin:20px 0}.dots i{width:18px;height:18px;border-radius:50%;background:#cfd9e6}.dots i.f{background:#1b5fd9}
+.keys{display:grid;grid-template-columns:repeat(3,74px);gap:14px}
+.k{height:70px;border-radius:24px;background:#fff;display:grid;place-items:center;font-weight:900;font-size:26px;color:#334;box-shadow:0 3px 8px #0001;border:0}
+.k:active{background:#e8f0fb}
+.err{color:#e44;height:22px;margin-top:10px;font-size:15px}
+/* admin */
+#admin{background:#f4f6fa}
+.sec{background:#fff;margin:10px 14px;border-radius:20px;padding:16px;box-shadow:0 2px 8px #0001}
+.sec h4{font-size:13px;color:#889;margin-bottom:10px;letter-spacing:.5px}
+.li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #eef1f6;font-weight:800;font-size:15px;color:#334}
+.li:first-of-type{border:0}
+.li .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li img{width:64px;height:40px;border-radius:8px;object-fit:cover;flex:none;background:#dde8f3}
+.x{color:#e44;background:none;border:0;font-size:22px;padding:0 6px}
+input,select{font:inherit;font-weight:800;width:100%;padding:13px 14px;border-radius:14px;border:2px solid #e2e9f2;background:#f8fbff;color:#334;user-select:text;outline:none}
+input:focus,select:focus{border-color:#1b5fd9}
+.add{background:#1b5fd9;color:#fff;text-align:center;padding:14px;border-radius:14px;font-weight:900;margin-top:10px;border:0;width:100%;font-size:16px}
+.add:disabled{opacity:.5}
+.add.sec2{background:#eef3fb;color:#1b5fd9}
+.two{display:flex;gap:10px;margin-top:10px}.two>*{flex:1}
+.sw{width:50px;height:30px;border-radius:15px;background:#cfd9e6;position:relative;border:0;flex:none;transition:.2s}
+.sw:after{content:"";position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s}
+.sw.on{background:#3ccf6e}.sw.on:after{left:23px}
+.hint{font-size:13px;color:#89a;margin-top:8px;line-height:1.4;font-weight:700}
+.msg{font-size:14px;margin-top:8px;min-height:18px}
+.toast{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);background:#334;color:#fff;padding:12px 20px;border-radius:16px;z-index:99;display:none;font-size:15px;max-width:90%;text-align:center}
+</style></head>
+<body>
+
+<!-- 1. Bosh ekran -->
+<div class="scr" id="home">
+  <div class="top"><div class="logo">Tsunami <span>Kids</span></div><button class="ib" onclick="askParent(openAdmin)">🔒</button></div>
+  <div class="chips" id="chips"></div>
+  <div class="scroll"><div class="grid" id="grid"></div><div class="empty" id="empty" style="display:none"><b>🎈</b>Hali video yo'q.<br>Ota-onang 🔒 tugmasi orqali video qo'shadi.</div></div>
+  <div class="timer" id="timerBox">⏰ <div class="bar"><i id="tbar"></i></div><span id="tleft"></span></div>
+</div>
+
+<!-- 2. Pleyer -->
+<div class="scr" id="player">
+  <button class="back" onclick="closePlayer()">←</button>
+  <div class="left">
+    <div class="pwrap"><div id="yt"></div><div class="shield" onclick="togglePlay()"></div></div>
+    <div class="pt" id="ptitle"></div>
+    <div class="prog"><i id="pprog"></i></div>
+    <div class="ctrl"><button class="btn" onclick="step(-1)">⏮</button><button class="btn big" id="pbtn" onclick="togglePlay()">⏸</button><button class="btn" onclick="step(1)">⏭</button></div>
+  </div>
+  <div class="nx"><h3>Keyingisi</h3><div id="nlist"></div></div>
+</div>
+
+<!-- 3. Ota-ona kirishi -->
+<div class="scr pin" id="pin">
+  <button class="back" style="background:#fff;color:#334" onclick="pinCancel()">←</button>
+  <div style="font-size:54px">👨‍👩‍👧</div>
+  <div style="font-weight:900;font-size:22px;margin-top:8px" id="pinTitle">Ota-ona bo'limi</div>
+  <div class="q" id="pinQ"></div>
+  <div class="dots" id="pinDots"></div>
+  <div class="keys" id="keys"></div>
+  <div class="err" id="pinErr"></div>
+</div>
+
+<!-- 4. Ota-ona paneli -->
+<div class="scr" id="admin">
+  <div class="top"><div class="logo" style="font-size:22px">Sozlamalar</div><button class="ib" onclick="closeAdmin()">✕</button></div>
+  <div class="scroll" style="padding:0 0 30px">
+    <div class="sec"><h4>VIDEO YOKI KANAL QO'SHISH</h4>
+      <input id="addUrl" placeholder="YouTube havolasi (video, shorts yoki kanal)" inputmode="url" autocomplete="off">
+      <div class="two"><select id="addCat"></select></div>
+      <button class="add" id="addBtn" onclick="addLink()">+ Qo'shish</button>
+      <div class="msg" id="addMsg"></div>
+      <div class="hint">Video: youtube.com/watch?v=… yoki youtu.be/…<br>Kanal: youtube.com/@kanalnomi — kanalning so'nggi videolari avtomatik qo'shiladi.</div>
+    </div>
+    <div class="sec"><h4>KANALLAR</h4><div id="chList"></div></div>
+    <div class="sec"><h4>VIDEOLAR</h4><div id="vList"></div></div>
+    <div class="sec"><h4>TOIFALAR</h4><div id="catList"></div>
+      <div class="two"><input id="newCat" placeholder="Yangi toifa nomi"><button class="add sec2" style="margin:0;flex:.5" onclick="addCat()">+</button></div></div>
+    <div class="sec"><h4>VAQT</h4>
+      <div class="li">Kunlik limit <select id="limit" style="width:140px" onchange="setS('limit',+this.value)"><option value="0">Cheklovsiz</option><option value="15">15 daqiqa</option><option value="30">30 daqiqa</option><option value="45">45 daqiqa</option><option value="60">1 soat</option><option value="90">1,5 soat</option><option value="120">2 soat</option></select></div>
+      <div class="li">Uxlash vaqti <button class="sw" id="swBed" onclick="toggleS('bedOn',this)"></button></div>
+      <div class="two"><input type="time" id="bedFrom" onchange="setS('bedFrom',this.value)"><input type="time" id="bedTo" onchange="setS('bedTo',this.value)"></div>
+      <div class="li" style="margin-top:6px">Har 20 daqiqada 5 daqiqa tanaffus <button class="sw" id="swBreak" onclick="toggleS('breakOn',this)"></button></div>
+    </div>
+    <div class="sec"><h4>BUGUNGI STATISTIKA</h4><div id="stats"></div>
+      <button class="add sec2" onclick="resetToday()">Bugungi vaqtni nolga qaytarish</button></div>
+    <div class="sec" id="kioskSec" style="display:none"><h4>PLANSHET REJIMI</h4>
+      <div class="li">Bolalar rejimi (kiosk) <button class="sw" id="swKiosk" onclick="toggleKiosk(this)"></button></div>
+      <div class="hint">Yoqilganda planshetdan faqat Tsunami Kids ishlaydi: Home, panel, sozlamalar va boshqa ilovalar yopiq. Sozlamalarga kirish uchun shu yerda o'chiring, ish tugagach qayta yoqing.</div>
+      <button class="add sec2" onclick="Native.openWifi()">Wi-Fi sozlamalari (kiosk vaqtincha o'chadi)</button>
+    </div>
+    <div class="sec"><h4>XAVFSIZLIK</h4><button class="add sec2" onclick="changePin()">PIN-kodni o'zgartirish</button></div>
+    <div class="hint" style="text-align:center;margin:10px 20px 30px">Tsunami Kids 1.1 (brauzer) • videolar YouTube'ning rasmiy pleyerida ko'rsatiladi</div>
+  </div>
+</div>
+
+<!-- Overlays -->
+<div class="ov" id="ovLimit"><div class="big">🌙</div><h2>Bugungi vaqt tugadi</h2><p>Bugun yetarlicha ko'rding! Endi o'ynash, kitob o'qish yoki dam olish vaqti.</p><button class="link" onclick="askParent(()=>{S.bonus=(S.bonus||0)+15;save();hideOv();})">Ota-ona: +15 daqiqa</button></div>
+<div class="ov" id="ovBed"><div class="big">😴</div><h2>Uxlash vaqti</h2><p>Videolar ertalab yana ochiladi. Shirin tushlar!</p><button class="link" onclick="askParent(()=>{bedSkip=Date.now()+3600e3;hideOv();})">Ota-ona: 1 soatga ochish</button></div>
+<div class="ov" id="ovBreak"><div class="big">🤸</div><h2>Tanaffus!</h2><p>Ko'zlaringga dam ber: derazadan uzoqqa qara, o'rningdan tur, cho'zil.</p><div class="cd" id="brCd"></div><button class="link" onclick="askParent(endBreak)">Ota-ona: tanaffusni o'tkazib yuborish</button></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- storage ----------
+const DEF={videos:[],channels:[],cats:["Multfilm","Qo'shiq","Ilm"],pin:"",limit:60,bedOn:true,bedFrom:"21:00",bedTo:"07:00",breakOn:true,day:"",used:0,seen:{},bonus:0,sinceBreak:0};
+let S;
+try{S=Object.assign({},DEF,JSON.parse(localStorage.getItem("tkids")||"{}"))}catch(e){S=Object.assign({},DEF)}
+function save(){try{localStorage.setItem("tkids",JSON.stringify(S))}catch(e){}}
+function today(){const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()}
+function rollDay(){if(S.day!==today()){S.day=today();S.used=0;S.seen={};S.bonus=0;S.sinceBreak=0;save()}}
+rollDay();
+const $=id=>document.getElementById(id);
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function toast(t){const e=$("toast");e.textContent=t;e.style.display="block";clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display="none",2600)}
+function show(id){document.querySelectorAll(".scr").forEach(s=>s.classList.toggle("on",s.id===id));cur=id}
+let cur="home";
+
+// ---------- native fetch (CORS'siz) ----------
+function nget(url){
+  if(window.Native)return new Promise(res=>{setTimeout(()=>{try{res(Native.fetch(url))}catch(e){res("")}},0)});
+  if(url.indexOf("/oembed?")<0)return Promise.resolve("");
+  return fetch(url).then(r=>r.ok?r.text():"").catch(()=>"");
+}
+
+// ---------- videolar ro'yxati ----------
+let cat="Hammasi";
+function allVideos(){
+  const out=[],ids=new Set();
+  S.videos.forEach(v=>{if(!ids.has(v.id)){ids.add(v.id);out.push(v)}});
+  S.channels.forEach(c=>(c.videos||[]).forEach(v=>{if(!ids.has(v.id)){ids.add(v.id);out.push(Object.assign({cat:c.cat},v))}}));
+  return out;
+}
+function visible(){const a=allVideos();return cat==="Hammasi"?a:a.filter(v=>v.cat===cat)}
+function thumb(id){return "https://i.ytimg.com/vi/"+id+"/hqdefault.jpg"}
+function setCat(i){cat=["Hammasi"].concat(S.cats)[i];renderHome()}
+function renderHome(){
+  const cats=["Hammasi"].concat(S.cats);
+  if(!cats.includes(cat))cat="Hammasi";
+  $("chips").innerHTML=cats.map((c,i)=>`<button class="chip${c===cat?" on":""}" onclick="setCat(${i})">${esc(c)}</button>`).join("");
+  const list=visible();
+  $("grid").innerHTML=list.map((v,i)=>`<button class="card" onclick="play(${i})"><div class="th" style="background-image:url('${thumb(v.id)}')"></div><div class="ct"><span>${esc(v.title||"Video")}</span></div></button>`).join("");
+  $("empty").style.display=list.length?"none":"block";
+  renderTimer();
+}
+function limitSec(){return S.limit?(S.limit+(S.bonus||0))*60:0}
+function renderTimer(){
+  const L=limitSec();$("timerBox").style.display=L?"flex":"none";if(!L)return;
+  const left=Math.max(0,L-S.used),p=left/L*100;
+  $("tbar").style.width=p+"%";$("tbar").classList.toggle("low",p<20);
+  $("tleft").textContent=Math.ceil(left/60)+" daq";
+}
+
+// ---------- pleyer (YouTube rasmiy IFrame API) ----------
+let yt=null,ytReady=false,queue=[],qi=0,playing=false,pendingId=null;
+(function(){const s=document.createElement("script");s.src="https://www.youtube.com/iframe_api";s.onerror=()=>toast("Internet yo'q — videolar ochilmaydi");document.head.appendChild(s)})();
+window.onYouTubeIframeAPIReady=function(){ytReady=true;if(pendingId)loadVid(pendingId)};
+function makePlayer(id){
+  yt=new YT.Player("yt",{host:"https://www.youtube-nocookie.com",videoId:id,
+    playerVars:{autoplay:1,controls:0,rel:0,modestbranding:1,playsinline:1,iv_load_policy:3,fs:0,disablekb:1,cc_load_policy:0,origin:location.origin},
+    events:{onReady:e=>{e.target.playVideo()},onStateChange:onState,onError:onErr}});
+}
+function loadVid(id){
+  if(!ytReady){pendingId=id;return}
+  pendingId=null;
+  if(!yt)makePlayer(id);else{try{yt.loadVideoById(id)}catch(e){}}
+}
+function play(i){
+  if(blocked())return;
+  queue=visible();qi=i;openPlayer();
+}
+function openPlayer(){
+  const v=queue[qi];if(!v)return;
+  show("player");$("ptitle").textContent=v.title||"";
+  loadVid(v.id);renderNext();
+  try{Native.keepScreenOn(true)}catch(e){}
+}
+function renderNext(){
+  const n=[];for(let k=1;k<=Math.min(8,queue.length-1);k++)n.push((qi+k)%queue.length);
+  $("nlist").innerHTML=n.map(j=>`<button class="row" onclick="qi=${j};openPlayer()"><div class="th" style="background-image:url('${thumb(queue[j].id)}')"></div><b>${esc(queue[j].title||"")}</b></button>`).join("");
+}
+function onState(e){
+  playing=e.data===1;$("pbtn").textContent=playing?"⏸":"▶";
+  if(e.data===0)step(1);
+}
+function onErr(e){toast("Bu videoni ilovada ko'rsatib bo'lmaydi, keyingisiga o'tildi");setTimeout(()=>step(1),1200)}
+function togglePlay(){if(!yt||!yt.getPlayerState)return;if(playing)yt.pauseVideo();else{if(blocked())return;yt.playVideo()}}
+function step(d){if(!queue.length)return;if(blocked())return;qi=(qi+d+queue.length)%queue.length;openPlayer()}
+function closePlayer(){try{yt&&yt.pauseVideo()}catch(e){}playing=false;try{Native.keepScreenOn(false)}catch(e){}show("home");renderHome()}
+window.onAppPause=function(){try{yt&&yt.pauseVideo()}catch(e){}save()}
+window.onBack=function(){
+  if(cur==="player")closePlayer();
+  else if(cur==="pin")pinCancel();
+  else if(cur==="admin")closeAdmin();
+};
+
+// ---------- vaqt nazorati ----------
+let bedSkip=0,breakUntil=0;
+function inBed(){
+  if(!S.bedOn||Date.now()<bedSkip)return false;
+  const n=new Date(),m=n.getHours()*60+n.getMinutes();
+  const [a,b]=S.bedFrom.split(":").map(Number),[c,d]=S.bedTo.split(":").map(Number);
+  const f=a*60+b,t=c*60+d;
+  return f<t?(m>=f&&m<t):(m>=f||m<t);
+}
+function blocked(){
+  rollDay();
+  if(inBed()){showOv("ovBed");return true}
+  if(limitSec()&&S.used>=limitSec()){showOv("ovLimit");return true}
+  if(Date.now()<breakUntil){showOv("ovBreak");return true}
+  return false;
+}
+function showOv(id){try{yt&&yt.pauseVideo()}catch(e){}document.querySelectorAll(".ov").forEach(o=>o.classList.toggle("on",o.id===id))}
+function hideOv(){document.querySelectorAll(".ov").forEach(o=>o.classList.remove("on"))}
+function endBreak(){breakUntil=0;S.sinceBreak=0;save();hideOv()}
+setInterval(()=>{
+  if(playing&&cur==="player"){
+    rollDay();S.used++;S.sinceBreak++;
+    const v=queue[qi];if(v)S.seen[v.id]=(S.seen[v.id]||0)+1;
+    if(S.used%10===0)save();
+    const pr=yt&&yt.getDuration?yt.getCurrentTime()/(yt.getDuration()||1)*100:0;$("pprog").style.width=pr+"%";
+    if(S.breakOn&&S.sinceBreak>=20*60){S.sinceBreak=0;breakUntil=Date.now()+5*60e3;save()}
+    blocked();
+  }
+  if(breakUntil){const l=Math.max(0,breakUntil-Date.now());$("brCd").textContent=Math.floor(l/60e3)+":"+String(Math.floor(l/1e3)%60).padStart(2,"0");if(!l)endBreak()}
+  if(cur==="home"&&Date.now()%15000<1000)renderTimer();
+},1000);
+
+// ---------- ota-ona kirishi ----------
+let pinBuf="",pinCb=null,pinMode="enter",pinFirst="",qAns=0;
+function newQ(){const a=3+Math.floor(Math.random()*7),b=3+Math.floor(Math.random()*7);qAns=a*b;return a+" × "+b+" = ?"}
+function askParent(cb){
+  pinCb=cb;pinBuf="";$("pinErr").textContent="";
+  if(!S.pin){pinMode="set1";$("pinTitle").textContent="Yangi PIN-kod o'rnating";$("pinQ").textContent="4 ta raqam";}
+  else{pinMode="math";$("pinTitle").textContent="Ota-ona bo'limi";$("pinQ").textContent=newQ();}
+  drawPin();show("pin");
+}
+function drawPin(){
+  const n=pinMode==="math"?String(qAns).length:4;
+  $("pinDots").innerHTML=Array.from({length:n},(_,i)=>`<i class="${i<pinBuf.length?"f":""}"></i>`).join("");
+}
+$("keys").innerHTML=["1","2","3","4","5","6","7","8","9","⌫","0","✓"].map(k=>`<button class="k" onclick="key('${k}')">${k}</button>`).join("");
+function key(k){
+  const n=pinMode==="math"?String(qAns).length:4;
+  if(k==="⌫"){pinBuf=pinBuf.slice(0,-1);drawPin();return}
+  if(k!=="✓"){if(pinBuf.length<n)pinBuf+=k;drawPin();if(pinBuf.length<n)return}
+  if(pinBuf.length<n)return;
+  $("pinErr").textContent="";
+  if(pinMode==="math"){
+    if(+pinBuf===qAns){pinMode="enter";$("pinQ").textContent="PIN-kodni kiriting"}
+    else{$("pinErr").textContent="Noto'g'ri javob";$("pinQ").textContent=newQ()}
+  }else if(pinMode==="enter"){
+    if(pinBuf===S.pin){const cb=pinCb;pinCb=null;show("home");cb&&cb();return}
+    $("pinErr").textContent="PIN noto'g'ri";
+  }else if(pinMode==="set1"){pinFirst=pinBuf;pinMode="set2";$("pinQ").textContent="PIN-kodni takrorlang"}
+  else if(pinMode==="set2"){
+    if(pinBuf===pinFirst){S.pin=pinBuf;save();toast("PIN-kod saqlandi");const cb=pinCb;pinCb=null;show("home");cb&&cb();return}
+    $("pinErr").textContent="Mos kelmadi, qaytadan";pinMode="set1";$("pinQ").textContent="4 ta raqam";
+  }
+  pinBuf="";drawPin();
+}
+function pinCancel(){pinCb=null;show("home");renderHome()}
+function changePin(){S.pin="";askParent(openAdmin)}
+
+// ---------- ota-ona paneli ----------
+function openAdmin(){hideOv();show("admin");renderAdmin()}
+function closeAdmin(){show("home");renderHome()}
+function setS(k,v){S[k]=v;save()}
+function toggleS(k,el){S[k]=!S[k];el.classList.toggle("on",S[k]);save()}
+function renderAdmin(){
+  $("addCat").innerHTML=S.cats.map(c=>`<option>${esc(c)}</option>`).join("");
+  $("chList").innerHTML=S.channels.length?S.channels.map((c,i)=>`<div class="li"><span class="nm">📺 ${esc(c.title)} <small style="color:#89a">(${(c.videos||[]).length} video • ${esc(c.cat)})</small></span><button class="x" onclick="refreshCh(${i})">⟳</button><button class="x" onclick="delCh(${i})">✕</button></div>`).join(""):`<div class="hint">Kanal qo'shilmagan</div>`;
+  $("vList").innerHTML=S.videos.length?S.videos.map((v,i)=>`<div class="li"><img src="${thumb(v.id)}"><span class="nm">${esc(v.title)}<br><small style="color:#89a">${esc(v.cat)}</small></span><button class="x" onclick="delV(${i})">✕</button></div>`).join(""):`<div class="hint">Video qo'shilmagan</div>`;
+  $("catList").innerHTML=S.cats.map((c,i)=>`<div class="li"><span class="nm">${esc(c)}</span><button class="x" onclick="delCat(${i})">✕</button></div>`).join("");
+  try{if(window.Native&&Native.isOwner()){$("kioskSec").style.display="block";$("swKiosk").classList.toggle("on",Native.kioskOn())}}catch(e){}
+  $("limit").value=String(S.limit);$("bedFrom").value=S.bedFrom;$("bedTo").value=S.bedTo;
+  $("swBed").classList.toggle("on",S.bedOn);$("swBreak").classList.toggle("on",S.breakOn);
+  const all=allVideos(),top=Object.entries(S.seen).sort((a,b)=>b[1]-a[1])[0];
+  const tv=top&&all.find(v=>v.id===top[0]);
+  $("stats").innerHTML=`<div class="li">Ko'rilgan vaqt <b>${Math.round(S.used/60)} daq</b></div><div class="li">Limitdan qolgani <b>${limitSec()?Math.max(0,Math.ceil((limitSec()-S.used)/60))+" daq":"cheklovsiz"}</b></div><div class="li"><span>Eng ko'p ko'rilgan</span><b class="nm" style="text-align:right">${tv?esc(tv.title):"—"}</b></div>`;
+}
+function toggleKiosk(el){const on=!el.classList.contains('on');try{Native.setKiosk(on)}catch(e){}el.classList.toggle('on',on);toast(on?'Bolalar rejimi yoqildi':'Bolalar rejimi o\'chirildi — planshet oddiy holatda')}
+function resetToday(){S.used=0;S.bonus=0;S.sinceBreak=0;save();renderAdmin();toast("Bugungi vaqt nolga qaytarildi")}
+function delV(i){S.videos.splice(i,1);save();renderAdmin()}
+function delCh(i){S.channels.splice(i,1);save();renderAdmin()}
+function addCat(){const n=$("newCat").value.trim();if(n&&!S.cats.includes(n)){S.cats.push(n);save()}$("newCat").value="";renderAdmin()}
+function delCat(i){const c=S.cats[i];if(S.cats.length<=1)return toast("Kamida bitta toifa kerak");S.cats.splice(i,1);
+  S.videos.forEach(v=>{if(v.cat===c)v.cat=S.cats[0]});S.channels.forEach(x=>{if(x.cat===c)x.cat=S.cats[0]});save();renderAdmin()}
+
+function videoId(u){
+  const m=u.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([A-Za-z0-9_-]{11})/);
+  if(m)return m[1];if(/^[A-Za-z0-9_-]{11}$/.test(u))return u;return null;
+}
+async function addLink(){
+  const raw=$("addUrl").value.trim(),c=$("addCat").value,msg=$("addMsg");
+  if(!raw)return;
+  $("addBtn").disabled=true;msg.style.color="#89a";msg.textContent="Tekshirilmoqda…";
+  try{
+    const id=videoId(raw);
+    if(id){
+      if(S.videos.some(v=>v.id===id))throw "Bu video allaqachon bor";
+      let title="Video";
+      const j=await nget("https://www.youtube.com/oembed?format=json&url="+encodeURIComponent("https://www.youtube.com/watch?v="+id));
+      if(j){try{title=JSON.parse(j).title||title}catch(e){}}else throw "Video topilmadi yoki ilovada ko'rsatishga ruxsat yo'q";
+      S.videos.unshift({id,title,cat:c});save();msg.style.color="#2a9d55";msg.textContent="✓ Qo'shildi: "+title;
+    }else{
+      const ch=await resolveChannel(raw);
+      if(!ch)throw "Havola tushunilmadi. Video yoki kanal havolasini kiriting";
+      if(S.channels.some(x=>x.id===ch.id))throw "Bu kanal allaqachon bor";
+      ch.cat=c;S.channels.push(ch);save();
+      msg.style.color="#2a9d55";msg.textContent="✓ Kanal qo'shildi: "+ch.title+" ("+ch.videos.length+" video)";
+    }
+    $("addUrl").value="";
+  }catch(e){msg.style.color="#e44";msg.textContent=typeof e==="string"?e:"Xatolik. Internetni tekshiring"}
+  $("addBtn").disabled=false;renderAdmin();
+}
+function chUrl(raw){
+  let cid=(raw.match(/(UC[A-Za-z0-9_-]{22})/)||[])[1];
+  if(cid)return "https://www.youtube.com/channel/"+cid+"/videos";
+  let url=raw.trim();
+  if(/^@/.test(url))url="https://www.youtube.com/"+url;
+  if(!/^https?:\/\//.test(url))url="https://"+url;
+  url=url.replace("://m.youtube.com","://www.youtube.com").replace("://youtube.com","://www.youtube.com");
+  if(!/youtube\.com\/(@|c\/|channel\/|user\/)/.test(url))return null;
+  url=url.split("?")[0].replace(/\/(videos|featured|shorts|streams|playlists|community|about)\/?$/,"").replace(/\/$/,"");
+  return url+"/videos";
+}
+function initialData(html){
+  const k=html.indexOf("ytInitialData");if(k<0)return null;
+  const st=html.indexOf("{",k),en=html.indexOf(";<\/script>",st);
+  try{return JSON.parse(html.slice(st,en))}catch(e){return null}
+}
+function walkVideos(o,out,seen){
+  if(!o||typeof o!=="object")return;
+  if(Array.isArray(o)){o.forEach(x=>walkVideos(x,out,seen));return}
+  const lv=o.lockupViewModel;
+  if(lv&&lv.contentId&&/^[A-Za-z0-9_-]{11}$/.test(lv.contentId)&&!seen.has(lv.contentId)){
+    const t=(((lv.metadata||{}).lockupMetadataViewModel||{}).title||{}).content;
+    seen.add(lv.contentId);out.push({id:lv.contentId,title:t||"Video"});return}
+  const vr=o.videoRenderer||o.gridVideoRenderer;
+  if(vr&&vr.videoId&&!seen.has(vr.videoId)){
+    const t=vr.title&&((vr.title.runs&&vr.title.runs[0].text)||vr.title.simpleText);
+    seen.add(vr.videoId);out.push({id:vr.videoId,title:t||"Video"});return}
+  for(const key in o)walkVideos(o[key],out,seen);
+}
+async function fetchChannel(url,old){
+  const html=await nget(url);if(!html)return null;
+  const d=initialData(html);if(!d)return null;
+  const md=(d.metadata||{}).channelMetadataRenderer||{};
+  const vids=[];walkVideos(d.contents||d,vids,new Set());
+  const id=md.externalId||(old&&old.id);if(!id)return null;
+  if(!vids.length&&!old)return null;
+  return {id,title:md.title||(old&&old.title)||"Kanal",url,videos:vids.length?vids.slice(0,40):(old.videos||[]),updated:Date.now(),cat:old&&old.cat};
+}
+async function resolveChannel(raw){const u=chUrl(raw);if(!u)return null;if(!window.Native)throw "Brauzer versiyasida faqat alohida video qo'shiladi (kanal — planshet ilovasida)";return await fetchChannel(u,null)}
+async function loadFeed(ch){return await fetchChannel(ch.url||("https://www.youtube.com/channel/"+ch.id+"/videos"),ch)}
+async function refreshCh(i){const c=S.channels[i];toast("Yangilanmoqda…");const r=await loadFeed(c);if(r){S.channels[i]=r;save();renderAdmin();toast("✓ "+r.title+" yangilandi")}else toast("Yangilab bo'lmadi")}
+async function autoRefresh(){for(let i=0;i<S.channels.length;i++){const c=S.channels[i];if(Date.now()-(c.updated||0)>12*3600e3){const r=await loadFeed(c);if(r){S.channels[i]=r;save()}}}if(cur==="home")renderHome()}
+
+// ---------- start ----------
+show("home");renderHome();
+if(!S.pin)setTimeout(()=>askParent(openAdmin),400);
+setTimeout(autoRefresh,1500);
+</script>
+</body></html>
