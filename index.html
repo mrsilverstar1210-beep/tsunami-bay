@@ -192,6 +192,9 @@ const store={get(k,d){try{const v=localStorage.getItem('tsd_'+k);return v==null?
 // len: metres, spd: top speed m/s, acc: m/s², grip: 0..1.4, rot: yaw fix so model faces +Z
 const CARS=[
  {id:'car06',name:'Tsunami GT',cls:'Superkar',len:4.6,spd:83,acc:17,grip:1.15,player:1},
+ {id:'n01',name:'Oq Shamol',cls:'Superkar',len:4.6,spd:84,acc:17.5,grip:1.15,player:1},
+ {id:'n10',name:'Qizil Bo\'ron',cls:'Muscle',len:5.0,spd:78,acc:15,grip:.95,player:1},
+ {id:'n11',name:'Ko\'k Chaqmoq',cls:'Muscle',len:4.8,spd:79,acc:15.5,grip:.97,player:1},
  {id:'car07',name:'Viper Sariq',cls:'Sport',len:4.5,spd:80,acc:16,grip:1.05,player:1},
  {id:'car17',name:'Rosso 488',cls:'Sport',len:4.5,spd:82,acc:16.5,grip:1.1,player:1},
  {id:'car18',name:'Supra Olov',cls:'Sport',len:4.4,spd:78,acc:15.5,grip:1.05,player:1},
@@ -614,7 +617,7 @@ const g=await new Promise((ok,err)=>loader.parse(bin.buffer,'',ok,err));
    wrap.add(inner);
    return {obj:wrap,len:Math.max(size.x,size.z),wid:Math.min(size.x,size.z),h:size.y};}
 // high-detail car models, loaded after start (garage + player cars first) and swapped into live cars
-const HQ_IDS=['car06','car07','car17','car18','car19','car10','car16','car05','car12','car08','car13','car01','car11','car03','car02','damas','damas2','matiz','lacetti','car20','sedan','car04'];const hqDone=new Set(),hqBusy=new Set();
+const HQ_IDS=['n01','n10','n11','car06','car07','car17','car18','car19','car10','car16','car05','car12','car08','car13','car01','car11','car03','car02','damas','damas2','matiz','lacetti','car20','sedan','car04'];const hqDone=new Set(),hqBusy=new Set();
 async function loadHQ(id){if(hqDone.has(id)||hqBusy.has(id)||!HQ_IDS.includes(id))return;hqBusy.add(id);try{const res=await fetch('models/hq/'+id+'.txt');if(!res.ok)throw 0;const p=await buildProto(id,await res.text());proto[id]=p;hqDone.add(id);
   for(const v of allVehicles){if(v.id!==id||!v.mesh)continue;const c=v.cfg;const old=v.mesh.children[0];const m=p.obj.clone(true);m.scale.setScalar(c.len/p.len);v.mesh.remove(old);v.mesh.add(m);v.mesh.children.unshift(v.mesh.children.pop());if(v._door)v._door=null}
   if(typeof gCar!=='undefined'&&gCar&&CARS[gIdx]&&CARS[gIdx].id===id&&garageGroup.visible)showGarageCar(true)}catch(e){}hqBusy.delete(id)}
